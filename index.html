@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Clock Dashboard - Production Ready</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #f8fafc;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23cbd5e1' stroke-width='1.5' opacity='0.4'%3E%3Ccircle cx='40' cy='40' r='40'/%3E%3Ccircle cx='0' cy='0' r='40'/%3E%3Ccircle cx='80' cy='0' r='40'/%3E%3Ccircle cx='0' cy='80' r='40'/%3E%3Ccircle cx='80' cy='80' r='40'/%3E%3Cpath d='M40 0v80M0 40h80' stroke-dasharray='4 4' opacity='0.5'/%3E%3C/g%3E%3C/svg%3E");
+            color: #0f172a; display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden; font-family: 'Montserrat', sans-serif; position: relative;
+        }
+
+        body::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: inherit; z-index: -1; animation: moveBatik 40s linear infinite; }
+        @keyframes moveBatik { 0% { background-position: 0 0; } 100% { background-position: 80px 80px; } }
+
+        /* --- JAM UTAMA --- */
+        #main-view { transition: all 1s cubic-bezier(0.22, 1, 0.36, 1); display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; }
+        #main-view.dimmed { transform: scale(0.92); opacity: 0.2; filter: blur(10px); }
+        #clock-container { display: flex; gap: 2vw; align-items: center; filter: drop-shadow(0 25px 40px rgba(15, 23, 42, 0.1)); }
+        
+        .flip-card {
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%); border-radius: 1vw; padding: 2vw 4vw;
+            font-family: 'Bebas Neue', sans-serif; line-height: 1; position: relative;
+            box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15), inset 0 2px 0 rgba(255, 255, 255, 1), inset 0 -2px 0 rgba(15, 23, 42, 0.05);
+            border: 1px solid #e2e8f0; color: #0f172a; 
+        }
+        .digit-large { font-size: 24vw; } .digit-small { font-size: 14vw; padding: 2vw 3vw; margin-top: 5vw; }
+        .flip-card::after { content: ''; position: absolute; top: 50%; left: 0; width: 100%; height: 3px; background: rgba(15, 23, 42, 0.1); transform: translateY(-50%); z-index: 2; }
+        .colon { font-family: 'Bebas Neue', sans-serif; font-size: 18vw; color: #94a3b8; animation: blink 1s ease-in-out infinite; padding-bottom: 2vw; }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        /* --- TEST PANEL (TERSEMBUNYI) --- */
+        #dev-toggle { position: fixed; top: 20px; right: 20px; font-size: 1.5vw; opacity: 0.15; cursor: pointer; z-index: 1001; transition: 0.3s; }
+        #dev-toggle:hover { opacity: 1; }
+        #test-panel { 
+            position: fixed; top: 60px; right: -300px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; 
+            background: rgba(255,255,255,0.7); padding: 15px; border-radius: 12px; backdrop-filter: blur(10px); 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.5);
+            transition: right 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        #test-panel.show { right: 20px; }
+        .btn-test { background: #0f172a; border: none; padding: 10px 15px; border-radius: 6px; font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; cursor: pointer; color: #ffffff; transition: 0.2s; text-align: left; }
+        .btn-test:hover { background: #3b82f6; transform: translateX(-5px); }
+        .test-title { font-size: 10px; font-weight: 900; letter-spacing: 2px; color: #64748b; margin-bottom: 5px; text-align: center; }
+
+        /* --- ALERT OVERLAY --- */
+        #overlay-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; pointer-events: none; z-index: 100; opacity: 0; transition: opacity 0.6s ease; }
+        
+        #alert-card {
+            width: 90%; height: 85%; border-radius: 3vw; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; overflow: hidden;
+            background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(30px) saturate(180%); -webkit-backdrop-filter: blur(30px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15); transform: translateY(100px) scale(0.95); transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        
+        #alert-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 8px; transition: background 0.8s; z-index: 5; }
+        
+        #overlay-container.active { pointer-events: auto; opacity: 1; } 
+        #overlay-container.active #alert-card { transform: translateY(0) scale(1); }
+        
+        .theme-sholat #alert-card::before { background: #10b981; box-shadow: 0 0 20px #10b981; } 
+        .theme-vacuum #alert-card::before { background: #f59e0b; box-shadow: 0 0 20px #f59e0b; } 
+        .theme-jam #alert-card::before { background: #3b82f6; box-shadow: 0 0 20px #3b82f6; }
+        
+        .theme-sholat #alert-title { color: #047857; } .theme-vacuum #alert-title { color: #b45309; } .theme-jam #alert-title { color: #1d4ed8; }
+        
+        #alert-label { font-size: 1.5vw; font-weight: 900; letter-spacing: 0.3em; color: #64748b; margin-bottom: 1vw; z-index: 2; }
+        #alert-title { font-size: 4vw; font-weight: 900; line-height: 1.2; text-transform: uppercase; z-index: 2; }
+
+        /* --- ANIMASI COUNTDOWN CINCIN & WAKTU TEPAT --- */
+        .countdown-wrapper { position: relative; width: 28vw; height: 28vw; display: flex; justify-content: center; align-items: center; margin: 3vw 0; z-index: 2; }
+        .ripple-effect { position: absolute; width: 100%; height: 100%; border-radius: 50%; background: rgba(15, 23, 42, 0.05); animation: rippleAnim 2s infinite; z-index: -1; }
+        .ripple-effect:nth-child(2) { animation-delay: 1s; }
+        @keyframes rippleAnim { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+        .countdown-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg); filter: drop-shadow(0 10px 20px rgba(0,0,0,0.1)); transition: opacity 0.5s; }
+        .countdown-bg { fill: none; stroke: rgba(15, 23, 42, 0.05); stroke-width: 1.5vw; }
+        .countdown-progress { fill: none; stroke-width: 1.5vw; stroke-linecap: round; stroke-dasharray: 251.2; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear, stroke 0.5s; }
+        
+        .theme-sholat .countdown-progress { stroke: #10b981; } .theme-vacuum .countdown-progress { stroke: #f59e0b; } .theme-jam .countdown-progress { stroke: #3b82f6; }
+
+        #alert-countdown { font-family: 'Bebas Neue', sans-serif; font-size: 15vw; line-height: 1; color: #0f172a; text-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+        .pulse-text { animation: pulse-red 1s infinite; } 
+        @keyframes pulse-red { 0%, 100% { color: #0f172a; } 50% { color: #e11d48; text-shadow: 0 0 40px rgba(225, 29, 72, 0.4); } }
+        
+        .time-up #alert-countdown { font-size: 8vw; }
+        
+        /* Transisi Cincin Menghilang dan Teks Membesar untuk Jam Tepat */
+        .time-reveal { 
+            animation: popInTime 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important; 
+            color: #1d4ed8 !important; text-shadow: 0 20px 40px rgba(29, 78, 216, 0.4) !important;
+        }
+        .hide-ring { opacity: 0 !important; }
+        @keyframes popInTime { 
+            0% { transform: scale(0.5); opacity: 0; } 
+            100% { transform: scale(1.5); opacity: 1; } 
+        }
+
+        /* --- ANIMASI ROBOT VACUUM EKSKLUSIF --- */
+        .vacuum-bot-container { position: absolute; bottom: 5vw; left: -15vw; width: 12vw; height: 12vw; display: none; z-index: 10; }
+        .theme-vacuum .vacuum-bot-container { display: block; animation: patrolRoom 15s ease-in-out infinite alternate; }
+        .vacuum-body { position: relative; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at top, #334155, #0f172a); box-shadow: 0 15px 30px rgba(0,0,0,0.4), inset 0 5px 10px rgba(255,255,255,0.2); border: 4px solid #1e293b; display: flex; justify-content: center; align-items: center; }
+        .vacuum-sensor { width: 40%; height: 40%; border-radius: 50%; background: #000; box-shadow: inset 0 2px 5px rgba(255,255,255,0.3); border: 2px solid #334155; position: relative; }
+        .vacuum-light { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); width: 1vw; height: 1vw; border-radius: 50%; background: #3b82f6; box-shadow: 0 0 10px #3b82f6, 0 0 20px #3b82f6; animation: vacuumBlink 1s infinite; }
+        .vacuum-brush { position: absolute; top: -5%; right: -5%; width: 4vw; height: 4vw; background: transparent; border: 2px dashed #94a3b8; border-radius: 50%; animation: spinBrush 0.5s linear infinite; opacity: 0.7; }
+        .vacuum-brush:nth-child(2) { top: -5%; left: -5%; right: auto; animation-direction: reverse; }
+
+        @keyframes patrolRoom { 0% { transform: translateX(0) rotate(0deg); } 25% { transform: translateX(30vw) rotate(45deg); } 50% { transform: translateX(60vw) rotate(-20deg); } 75% { transform: translateX(90vw) rotate(15deg); } 100% { transform: translateX(120vw) rotate(0deg); } }
+        @keyframes vacuumBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes spinBrush { 100% { transform: rotate(360deg); } }
+
+        /* --- SMART HOME PANEL & SLIDER --- */
+        #smart-info-panel { position: fixed; left: 0; bottom: -50%; width: 100%; height: 35vh; background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(25px) saturate(200%); border-top: 1px solid rgba(255, 255, 255, 1); box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.1); z-index: 90; display: flex; flex-direction: column; justify-content: center; transition: all 1.2s cubic-bezier(0.22, 1, 0.36, 1); border-radius: 3vw 3vw 0 0; overflow: hidden; pointer-events: none; }
+        #smart-info-panel.state-small { bottom: 0; pointer-events: auto; }
+        #smart-info-panel.state-expanded { bottom: 0; height: 100vh; border-radius: 0; pointer-events: auto; background: rgba(255, 255, 255, 0.95); }
+        .smart-info-header { font-weight: 900; font-size: 1.2vw; letter-spacing: 0.3em; color: #475569; margin-left: 5vw; margin-bottom: 2vw; display: flex; align-items: center; gap: 10px; transition: opacity 0.5s; }
+        .live-dot { width: 10px; height: 10px; background-color: #10b981; border-radius: 50%; animation: pulse-dot 1.5s infinite; }
+        @keyframes pulse-dot { 0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); } 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); } }
+        #slider-view { width: 100%; overflow: hidden; transition: opacity 0.5s; opacity: 1; }
+        .slider-track { display: flex; gap: 2vw; width: max-content; animation: scrollInfo 25s linear infinite; padding-left: 5vw; }
+        @keyframes scrollInfo { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+        .smart-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1.5vw; padding: 1.5vw 2.5vw; width: 30vw; display: flex; align-items: center; gap: 1.5vw; box-shadow: 0 10px 20px rgba(15, 23, 42, 0.05); }
+        .smart-card-icon { font-size: 3.5vw; } .smart-card-title { font-weight: 800; font-size: 1.2vw; color: #0f172a; margin-bottom: 0.3vw; } .smart-card-desc { font-weight: 500; font-size: 1vw; color: #64748b; line-height: 1.4; }
+
+        /* --- MULTI-VIEW EXPANDED (HOME vs WEATHER) --- */
+        .expanded-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3vw; opacity: 0; pointer-events: none; transform: scale(0.9); transition: all 1s cubic-bezier(0.22, 1, 0.36, 1); }
+        #smart-info-panel.state-expanded #slider-view, #smart-info-panel.state-expanded .smart-info-header { opacity: 0; pointer-events: none; }
+        #smart-info-panel.state-expanded.show-home #expanded-home { opacity: 1; transform: scale(1); pointer-events: auto; transition-delay: 0.4s; }
+        #smart-info-panel.state-expanded.show-weather #expanded-weather { opacity: 1; transform: scale(1); pointer-events: auto; transition-delay: 0.4s; }
+        .big-warning-card { background: linear-gradient(135deg, #ffffff, #f8fafc); border: 1px solid #e2e8f0; border-radius: 2vw; width: 80%; padding: 4vw; display: flex; align-items: center; gap: 3vw; box-shadow: 0 20px 40px rgba(15, 23, 42, 0.05); }
+        .big-icon { font-size: 7vw; background: #f1f5f9; padding: 2vw; border-radius: 1.5vw; min-width: 12vw; text-align: center; }
+        .big-text-container { text-align: left; } .big-title { font-size: 3vw; font-weight: 900; color: #0f172a; line-height: 1.1; margin-bottom: 1vw; } .big-desc { font-size: 1.5vw; font-weight: 500; color: #64748b; line-height: 1.4; }
+        .highlight-blue { color: #2563eb; } .highlight-green { color: #10b981; } 
+
+        /* --- ANIMASI CUACA CSS --- */
+        #expanded-weather { overflow: hidden; background: #0f172a; color: white; border-radius: 0; }
+        .weather-content-wrapper { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1vw; }
+        .huge-temp { font-family: 'Bebas Neue', sans-serif; font-size: 25vw; line-height: 0.8; text-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .huge-cond { font-size: 4vw; font-weight: 900; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 2vw; }
+        .weather-advice-box { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 2vw 4vw; border-radius: 2vw; border: 1px solid rgba(255,255,255,0.2); font-size: 1.8vw; font-weight: 500; max-width: 80%; }
+        .weather-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; transition: all 1s; opacity: 0; }
+        .weather-sunny { opacity: 1; background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
+        .weather-sunny::before { content: '☀️'; position: absolute; font-size: 40vw; top: -10vw; right: -10vw; filter: drop-shadow(0 0 50px rgba(253, 224, 71, 0.8)); animation: spinSlow 30s linear infinite; opacity: 0.8; }
+        .weather-cloudy { opacity: 1; background: linear-gradient(135deg, #64748b, #94a3b8); }
+        .weather-cloudy::before { content: '☁️'; position: absolute; font-size: 30vw; top: 10%; left: -20%; filter: drop-shadow(0 20px 30px rgba(0,0,0,0.2)); animation: floatCloud 20s linear infinite; }
+        .weather-cloudy::after { content: '☁️'; position: absolute; font-size: 40vw; bottom: -10%; right: -20%; filter: drop-shadow(0 20px 30px rgba(0,0,0,0.2)); animation: floatCloud 25s linear infinite reverse; opacity: 0.7;}
+        .weather-rainy { opacity: 1; background: linear-gradient(to bottom, #1e293b, #334155); }
+        .weather-rainy::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(255,255,255,0.2) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,0.2) 2px, transparent 2px); background-size: 20px 100px; animation: rainFall 0.8s linear infinite; opacity: 0.5; }
+        .weather-storm { opacity: 1; background: #0f172a; animation: lightning 5s infinite; }
+        .weather-storm::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(255,255,255,0.3) 2px, transparent 2px); background-size: 10px 100px; animation: rainFall 0.5s linear infinite; opacity: 0.6; }
+        @keyframes spinSlow { 100% { transform: rotate(360deg); } } @keyframes floatCloud { 0% { transform: translateX(0); } 50% { transform: translateX(100vw); } 100% { transform: translateX(0); } }
+        @keyframes rainFall { 0% { background-position: 0 0; } 100% { background-position: 20px 100px; } } @keyframes lightning { 0%, 95%, 98% { background: #0f172a; } 96%, 99% { background: #cbd5e1; } }
+    </style>
+</head>
+<body>
+
+    <div id="dev-toggle" onclick="toggleTestPanel()" title="Tampilkan Panel Dev">⚙️</div>
+    <div id="test-panel">
+        <div class="test-title">PANEL DEVELOPER</div>
+        <button class="btn-test" onclick="startTest('jam')">▶ Tes Menuju Jam & Pop-up</button>
+        <button class="btn-test" onclick="startTest('sholat')">▶ Tes Waktu Sholat</button>
+        <button class="btn-test" style="background:#f59e0b;" onclick="startTest('vacuum')">▶ Tes Animasi Vacuum</button>
+        <button class="btn-test" style="background:#10b981;" onclick="startTest('smartinfo')">▶ Tes Info & Cuaca (00:00)</button>
+        <button class="btn-test" style="background:#e11d48;" onclick="stopTest()">⏹ Hentikan Tes</button>
+    </div>
+
+    <div id="main-view">
+        <div id="clock-container">
+            <div class="flip-card digit-large" id="hours">00</div>
+            <div class="colon">:</div>
+            <div class="flip-card digit-large" id="minutes">00</div>
+            <div class="colon" style="font-size: 14vw; margin-top: 5vw; padding-bottom: 0;">:</div>
+            <div class="flip-card digit-small" id="seconds">00</div>
+        </div>
+    </div>
+
+    <div id="overlay-container">
+        <div id="alert-card">
+            
+            <div class="vacuum-bot-container">
+                <div class="vacuum-body">
+                    <div class="vacuum-brush"></div><div class="vacuum-brush"></div>
+                    <div class="vacuum-sensor"><div class="vacuum-light"></div></div>
+                </div>
+            </div>
+
+            <div id="alert-label">Sistem Informasi</div>
+            <div id="alert-title">Judul</div>
+            
+            <div class="countdown-wrapper" id="countdown-wrapper">
+                <div class="ripple-effect"></div><div class="ripple-effect"></div>
+                <svg class="countdown-svg" id="countdown-svg" viewBox="0 0 100 100">
+                    <circle class="countdown-bg" cx="50" cy="50" r="40"></circle>
+                    <circle class="countdown-progress" id="countdown-ring" cx="50" cy="50" r="40"></circle>
+                </svg>
+                <div id="alert-countdown">60</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="smart-info-panel">
+        <div class="smart-info-header"><div class="live-dot"></div> STATUS SISTEM RUMAH</div>
+        <div id="slider-view"><div class="slider-track" id="slider-track"></div></div>
+
+        <div id="expanded-home" class="expanded-container">
+            <div class="big-warning-card">
+                <div class="big-icon">⚡</div>
+                <div class="big-text-container">
+                    <div class="big-title">GUNAKAN LISTRIK <br><span class="highlight-blue">DENGAN BIJAK</span></div>
+                    <div class="big-desc">Sistem mendeteksi aktivitas tinggi. Matikan perangkat yang tidak digunakan.</div>
+                </div>
+            </div>
+            <div class="big-warning-card">
+                <div class="big-icon">🌬️</div>
+                <div class="big-text-container">
+                    <div class="big-title">MVAIR: PASTIKAN UDARA <br><span class="highlight-green">BERSIH</span></div>
+                    <div class="big-desc">Sirkulasi dalam kondisi normal. Filter udara berfungsi optimal.</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="expanded-weather" class="expanded-container">
+            <div id="weather-anim-layer" class="weather-bg weather-cloudy"></div> 
+            <div class="weather-content-wrapper">
+                <div id="w-temp" class="huge-temp">--°C</div>
+                <div id="w-cond" class="huge-cond">KEDAMEAN, GRESIK</div>
+                <div class="weather-advice-box"><span id="w-advice">Memuat status cuaca satelit...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const jadwalSholat = { "04:12": "Subuh", "05:31": "Terbit", "11:27": "Zuhur", "14:49": "Asar", "17:23": "Magrib", "18:34": "Isya" };
+        const jadwalVacuum = ["08:15", "12:15", "15:15"];
+        const smartCards = [
+            { icon: "💡", title: "Efisiensi Energi", desc: "Arus stabil. Pemakaian normal." },
+            { icon: "🌬️", title: "Sensor MVAir", desc: "AQI Terdeteksi: 45 (Baik)." },
+            { icon: "☀️", title: "Panel Surya", desc: "Produksi PLTS optimal." },
+            { icon: "🌡️", title: "Suhu Ruangan", desc: "Suhu 24°C, Kelembapan 55%." },
+            { icon: "🔒", title: "Keamanan", desc: "Akses pintu utama terkunci." }
+        ];
+
+        let currentWeatherClass = "weather-cloudy"; let currentTemp = "--"; let currentCond = "MEMUAT..."; let currentAdvice = "Sistem sedang mengkalibrasi cuaca Kedamean...";
+
+        function toggleTestPanel() { document.getElementById('test-panel').classList.toggle('show'); }
+
+        async function fetchWeather() {
+            try {
+                const apiKey = "33d987ce7bc684062ae339cd177b4395";
+                const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Kedamean,ID&units=metric&appid=${apiKey}&lang=id`);
+                const data = await res.json();
+                
+                if (data.cod === 200) {
+                    currentTemp = Math.round(data.main.temp); currentCond = data.weather[0].description.toUpperCase();
+                    const mainCondition = data.weather[0].main.toLowerCase();
+                    if (mainCondition.includes('clear')) { currentWeatherClass = 'weather-sunny'; currentAdvice = currentTemp > 33 ? "Cuaca sangat panas! Pastikan ruangan sejuk dan minum air yang cukup." : "Cuaca cerah. Sangat baik untuk membuka sirkulasi udara."; } 
+                    else if (mainCondition.includes('cloud')) { currentWeatherClass = 'weather-cloudy'; currentAdvice = "Cuaca berawan. Sirkulasi udara normal di Kedamean."; } 
+                    else if (mainCondition.includes('rain') || mainCondition.includes('drizzle')) { currentWeatherClass = 'weather-rainy'; currentAdvice = "Hujan turun! Pastikan pintu & jendela tertutup rapat."; } 
+                    else if (mainCondition.includes('thunderstorm')) { currentWeatherClass = 'weather-storm'; currentAdvice = "Peringatan Badai Petir! Cabut perangkat elektronik yang rawan."; } 
+                    else { currentWeatherClass = 'weather-cloudy'; currentAdvice = "Cuaca normal. Sistem beroperasi dengan baik."; }
+                }
+            } catch (error) { console.error(error); }
+        }
+        fetchWeather(); setInterval(fetchWeather, 30 * 60 * 1000);
+
+        const elSliderTrack = document.getElementById('slider-track');
+        let cardsHTML = ''; smartCards.forEach(c => cardsHTML += `<div class="smart-card"><div class="smart-card-icon">${c.icon}</div><div><div class="smart-card-title">${c.title}</div><div class="smart-card-desc">${c.desc}</div></div></div>`); elSliderTrack.innerHTML = cardsHTML + cardsHTML; 
+
+        const elMainView = document.getElementById('main-view'); const elHours = document.getElementById('hours'); const elMinutes = document.getElementById('minutes'); const elSeconds = document.getElementById('seconds');
+        const elOverlayContainer = document.getElementById('overlay-container'); const elAlertLabel = document.getElementById('alert-label'); const elAlertTitle = document.getElementById('alert-title'); 
+        const elAlertCountdown = document.getElementById('alert-countdown'); const elCountdownRing = document.getElementById('countdown-ring'); const elCountdownWrapper = document.getElementById('countdown-wrapper'); const elCountdownSvg = document.getElementById('countdown-svg');
+        const elSmartInfoPanel = document.getElementById('smart-info-panel'); const elAnimLayer = document.getElementById('weather-anim-layer');
+        const elWTemp = document.getElementById('w-temp'); const elWCond = document.getElementById('w-cond'); const elWAdvice = document.getElementById('w-advice');
+
+        let isTesting = false; let testDuration = 30; let testSisaWaktu = 0; let activeTestType = "";
+        
+        function startTest(type) { 
+            isTesting = true; activeTestType = type;
+            testDuration = (type === 'smartinfo') ? 30 : 15; testSisaWaktu = testDuration; 
+            updateUI(new Date()); 
+        }
+        function stopTest() { isTesting = false; activeTestType = ""; updateUI(new Date()); }
+
+        function updateClock() {
+            const now = new Date();
+            elHours.innerText = String(now.getHours()).padStart(2, '0');
+            elMinutes.innerText = String(now.getMinutes()).padStart(2, '0');
+            elSeconds.innerText = String(now.getSeconds()).padStart(2, '0');
+            if (isTesting) {
+                if (testSisaWaktu >= 0) testSisaWaktu--; else { if (testSisaWaktu < -6) { isTesting = false; activeTestType = ""; } testSisaWaktu--; }
+            }
+            updateUI(now);
+        }
+
+        function updateUI(nowDate) {
+            let showAlert = false; let alertTitle = ""; let alertLabel = ""; let alertClass = ""; let isActionNow = false; let sisaTampil = 0; let totalDurasi = 60;
+            let smartState = 'hidden'; let expandPhase = ''; 
+
+            const currH = String(nowDate.getHours()).padStart(2, '0'); const currM = String(nowDate.getMinutes()).padStart(2, '0'); const currS = nowDate.getSeconds();
+            const nextMinDate = new Date(nowDate.getTime() + (60 - currS) * 1000);
+            const nextTimeStr = `${String(nextMinDate.getHours()).padStart(2, '0')}:${String(nextMinDate.getMinutes()).padStart(2, '0')}`;
+            const currTimeStr = `${currH}:${currM}`;
+
+            if (isTesting) {
+                if (activeTestType === 'smartinfo') {
+                    let secElapsed = 30 - testSisaWaktu;
+                    if (secElapsed < 10) smartState = 'state-small';
+                    else if (secElapsed >= 10 && secElapsed < 20) { smartState = 'state-expanded'; expandPhase = 'show-home'; }
+                    else if (secElapsed >= 20 && secElapsed < 30) { smartState = 'state-expanded'; expandPhase = 'show-weather'; }
+                } else {
+                    showAlert = true; totalDurasi = 15;
+                    if (activeTestType === 'jam') { alertClass = "theme-jam"; alertLabel = "PERGANTIAN WAKTU"; alertTitle = testSisaWaktu > 0 ? "MENUJU PUKUL 12:00" : "PUKUL 12:00"; } 
+                    else if (activeTestType === 'vacuum') { alertClass = "theme-vacuum"; alertLabel = "SMART HOME AKTIF"; alertTitle = testSisaWaktu > 0 ? "PERSIAPAN VACUUM" : "VACUUM BEKERJA"; } 
+                    else if (activeTestType === 'sholat') { alertClass = "theme-sholat"; alertLabel = "WAKTU IBADAH"; alertTitle = testSisaWaktu > 0 ? "MENUJU WAKTU MAGRIB" : "MASUK WAKTU MAGRIB"; }
+                    if (testSisaWaktu <= 0) isActionNow = true;
+                    sisaTampil = testSisaWaktu > 0 ? testSisaWaktu : 0;
+                }
+            } else {
+                if (currS < 15) {
+                    if (jadwalSholat[currTimeStr]) { showAlert = true; alertLabel = "WAKTU IBADAH"; alertTitle = `MASUK WAKTU ${jadwalSholat[currTimeStr]}`; alertClass = "theme-sholat"; isActionNow = true; } 
+                    else if (jadwalVacuum.includes(currTimeStr)) { showAlert = true; alertLabel = "SMART HOME AKTIF"; alertTitle = "ROBOT VACUUM BEKERJA"; alertClass = "theme-vacuum"; isActionNow = true; }
+                    else if (currM === '00' && currS < 6) {
+                        // Tahan Peringatan Pergantian Jam selama 6 detik pertama
+                        showAlert = true; alertLabel = "PERGANTIAN WAKTU"; alertTitle = `PUKUL ${currTimeStr}`; alertClass = "theme-jam"; isActionNow = true;
+                    }
+                }
+
+                if (!showAlert && currS >= 0) {
+                    if (jadwalSholat[nextTimeStr]) { showAlert = true; alertLabel = "PERSIAPAN IBADAH"; alertTitle = `MENUJU WAKTU ${jadwalSholat[nextTimeStr]}`; alertClass = "theme-sholat"; } 
+                    else if (jadwalVacuum.includes(nextTimeStr)) { showAlert = true; alertLabel = "PERINGATAN SISTEM"; alertTitle = "PERSIAPAN ROBOT VACUUM"; alertClass = "theme-vacuum"; } 
+                    else if (nextMinDate.getMinutes() % 15 === 0) { showAlert = true; alertLabel = "PERGANTIAN WAKTU"; alertTitle = `MENUJU PUKUL ${nextTimeStr}`; alertClass = "theme-jam"; }
+                }
+                
+                if (!showAlert && currM === '00') {
+                    if (currS < 10) smartState = 'state-small'; 
+                    else if (currS >= 10 && currS < 20) { smartState = 'state-expanded'; expandPhase = 'show-home'; }
+                    else if (currS >= 20 && currS < 30) { smartState = 'state-expanded'; expandPhase = 'show-weather'; }
+                }
+                sisaTampil = 60 - currS; totalDurasi = 60;
+            }
+            
+            let progressOffset = 251.2 * (1 - (sisaTampil / totalDurasi));
+
+            if (showAlert) {
+                elOverlayContainer.className = 'active ' + alertClass; 
+                elAlertLabel.innerText = alertLabel; elAlertTitle.innerText = alertTitle; 
+                
+                if (isActionNow) { 
+                    let actionText = "SEKARANG";
+                    let timeElapsed = isTesting ? Math.abs(testSisaWaktu) : currS;
+
+                    // Logika Animasi Time Reveal untuk Jam Tepat (Aktif di detik ke-2 dst)
+                    if (alertClass === "theme-jam" && timeElapsed >= 2) {
+                        actionText = isTesting ? "12:00" : currTimeStr;
+                        elAlertCountdown.classList.remove("pulse-text");
+                        elAlertCountdown.classList.add("time-reveal");
+                        elCountdownSvg.classList.add("hide-ring"); // Hilangkan cincin agar bersih
+                    } else {
+                        elAlertCountdown.classList.remove("time-reveal");
+                        elAlertCountdown.classList.add("pulse-text");
+                        elCountdownSvg.classList.remove("hide-ring");
+                    }
+
+                    elAlertCountdown.innerText = actionText; 
+                    elCountdownWrapper.classList.add("time-up");
+                    elCountdownRing.style.strokeDashoffset = 251.2; 
+                } else { 
+                    elAlertCountdown.innerText = sisaTampil; 
+                    elCountdownWrapper.classList.remove("time-up");
+                    elCountdownSvg.classList.remove("hide-ring");
+                    elCountdownRing.style.strokeDashoffset = progressOffset;
+                    
+                    if (sisaTampil <= 10) elAlertCountdown.classList.add("pulse-text"); else elAlertCountdown.classList.remove("pulse-text"); 
+                    elAlertCountdown.classList.remove("time-reveal");
+                }
+            } else { 
+                elOverlayContainer.className = ''; elAlertCountdown.classList.remove("pulse-text"); elAlertCountdown.classList.remove("time-reveal");
+            }
+
+            if (smartState === 'state-small') { elSmartInfoPanel.className = 'state-small'; } 
+            else if (smartState === 'state-expanded') {
+                elSmartInfoPanel.className = 'state-expanded ' + expandPhase;
+                if (expandPhase === 'show-weather') {
+                    elAnimLayer.className = 'weather-bg ' + currentWeatherClass;
+                    elWTemp.innerText = currentTemp + '°C'; elWCond.innerText = currentCond; elWAdvice.innerText = currentAdvice;
+                }
+            } else { elSmartInfoPanel.className = ''; }
+
+            if (showAlert || smartState !== 'hidden') elMainView.classList.add('dimmed'); else elMainView.classList.remove('dimmed');
+        }
+        setInterval(updateClock, 1000); updateClock();
+    </script>
+</body>
+</html>
