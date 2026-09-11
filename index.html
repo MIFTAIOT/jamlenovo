@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Clock Dashboard - Ultimate Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    
+    <script src="https://code.responsivevoice.org/responsivevoice.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #f8fafc;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80' viewBox='0 0 80 80'%3E%3Cg fill='none' stroke='%23cbd5e1' stroke-width='1.5' opacity='0.4'%3E%3Ccircle cx='40' cy='40' r='40'/%3E%3Ccircle cx='0' cy='0' r='40'/%3E%3Ccircle cx='80' cy='0' r='40'/%3E%3Ccircle cx='0' cy='80' r='40'/%3E%3Ccircle cx='80' cy='80' r='40'/%3E%3Cpath d='M40 0v80M0 40h80' stroke-dasharray='4 4' opacity='0.5'/%3E%3C/g%3E%3C/svg%3E");
+            color: #0f172a; display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden; font-family: 'Montserrat', sans-serif; position: relative;
+        }
+
+        body::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: inherit; z-index: -1; animation: moveBatik 40s linear infinite; transform: translateZ(0); }
+        @keyframes moveBatik { 0% { background-position: 0 0; } 100% { background-position: 80px 80px; } }
+
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #0f172a; color: #ffffff;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; z-index: 9999; cursor: pointer; transition: opacity 0.8s ease;
+        }
+        #start-screen h2 { font-size: 3vw; margin-bottom: 1vw; color: #3b82f6; letter-spacing: 0.1em; }
+        #start-screen p { font-size: 1.5vw; color: #94a3b8; }
+        #start-screen .pulse { animation: pulse-start 1.5s infinite; margin-top: 2vw; padding: 1vw 3vw; border: 2px solid #3b82f6; border-radius: 50px; font-weight: bold; font-size: 1.5vw; letter-spacing: 2px;}
+        @keyframes pulse-start { 0%, 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4); } 50% { box-shadow: 0 0 0 20px rgba(59, 130, 246, 0); } }
+
+        #dev-toggle { position: fixed; top: 20px; right: 20px; font-size: 1.5vw; opacity: 0.15; cursor: pointer; z-index: 1001; transition: 0.3s; background: rgba(0,0,0,0.1); padding: 10px; border-radius: 50%; display: none; }
+        #dev-toggle:hover { opacity: 1; }
+        #test-panel { 
+            position: fixed; top: 60px; right: -450px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; 
+            background: rgba(255,255,255,0.95); padding: 15px; border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); border: 1px solid rgba(226,232,240,1);
+            transition: right 0.4s cubic-bezier(0.22, 1, 0.36, 1); width: 340px;
+        }
+        #test-panel.show { right: 20px; }
+        .test-title { font-size: 10px; font-weight: 900; letter-spacing: 2px; color: #64748b; margin-bottom: 5px; text-align: center; }
+        .grid-btn-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; }
+        .grid-btn-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-bottom: 8px; }
+        .btn-test { background: #0f172a; border: none; padding: 8px 4px; border-radius: 4px; font-family: 'Montserrat', sans-serif; font-size: 10px; font-weight: 700; cursor: pointer; color: #ffffff; transition: 0.2s; text-align: center; }
+        .btn-test:hover { background: #3b82f6; transform: scale(1.02); }
+        .btn-wide { grid-column: span 2; }
+        .btn-green { background: #10b981; } .btn-orange { background: #f59e0b; } .btn-red { background: #e11d48; } .btn-purple { background: #8b5cf6; }
+
+        #main-view { transition: opacity 0.8s ease, filter 0.8s ease; display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; transform: translateZ(0); }
+        #main-view.dimmed { opacity: 0.2; pointer-events: none; }
+        #clock-container { display: flex; gap: 2vw; align-items: center; filter: drop-shadow(0 25px 40px rgba(15, 23, 42, 0.1)); }
+        
+        .flip-container { position: relative; width: 28vw; height: 26vw; perspective: 1200px; border-radius: 1vw; box-shadow: 0 15px 30px -10px rgba(15, 23, 42, 0.15); background: #cbd5e1; transform: translateZ(0); }
+        .flip-container.small { width: 16vw; height: 15vw; margin-top: 5vw; }
+        
+        .flip-half, .flip-flap {
+            position: absolute; left: 0; width: 100%; height: 50%; overflow: hidden;
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            border: 1px solid #e2e8f0; backface-visibility: hidden; transform: translateZ(0);
+        }
+        .flip-top, .flap-top { top: 0; border-radius: 1vw 1vw 0 0; transform-origin: bottom; border-bottom: 1px solid rgba(15,23,42,0.1); }
+        .flip-bottom, .flap-bottom { bottom: 0; border-radius: 0 0 1vw 1vw; transform-origin: top; border-top: none; }
+        
+        .flap-top { z-index: 2; }
+        .flap-bottom { z-index: 2; transform: rotateX(90deg); }
+        
+        .flip-inner-text {
+            position: absolute; top: 0; left: 0; width: 100%; 
+            height: 26vw; line-height: 26vw; text-align: center;
+            font-size: 24vw; color: #0f172a; font-family: 'Bebas Neue', sans-serif;
+        }
+        .flip-bottom .flip-inner-text, .flap-bottom .flip-inner-text { top: -13vw; }
+        .flip-container.small .flip-inner-text { height: 15vw; line-height: 15vw; font-size: 14vw; }
+        .flip-container.small .flip-bottom .flip-inner-text, .flip-container.small .flap-bottom .flip-inner-text { top: -7.5vw; }
+        
+        .flip-fold-down { animation: foldDown 0.3s cubic-bezier(0.4, 0.0, 1, 1) forwards; }
+        .flip-unfold-down { animation: unfoldDown 0.3s cubic-bezier(0.0, 0.0, 0.2, 1) 0.3s forwards; }
+        
+        @keyframes foldDown { 0% { transform: rotateX(0deg); } 100% { transform: rotateX(-90deg); } }
+        @keyframes unfoldDown { 0% { transform: rotateX(90deg); } 100% { transform: rotateX(0deg); } }
+
+        .colon { font-family: 'Bebas Neue', sans-serif; font-size: 18vw; color: #94a3b8; animation: blink 1s ease-in-out infinite; padding-bottom: 2vw; transform: translateZ(0); }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        #overlay-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; pointer-events: none; z-index: 100; opacity: 0; transition: opacity 0.6s ease; visibility: hidden; }
+        
+        #alert-card {
+            width: 90%; height: 85%; border-radius: 3vw; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; position: relative; overflow: hidden;
+            background: rgba(255, 255, 255, 0.95); 
+            border: 1px solid rgba(226, 232, 240, 1); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); 
+            transform: translateY(50px) scale(0.95); transition: all 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        #alert-card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 8px; transition: background 0.8s; z-index: 5; }
+        
+        #overlay-container.active { pointer-events: auto; opacity: 1; visibility: visible; } 
+        #overlay-container.active #alert-card { transform: translateY(0) scale(1); }
+        
+        /* THEMES */
+        .theme-sholat #alert-card::before { background: #10b981; } .theme-vacuum #alert-card::before { background: #f59e0b; } 
+        .theme-jam #alert-card::before { background: #3b82f6; } .theme-dnd #alert-card::before { background: #6366f1; }
+        .theme-school #alert-card::before { background: #eab308; }
+        
+        .theme-sholat #alert-title { color: #047857; } .theme-vacuum #alert-title { color: #b45309; } 
+        .theme-jam #alert-title { color: #1d4ed8; } .theme-dnd #alert-title { color: #4338ca; }
+        .theme-school #alert-title { color: #ca8a04; }
+        
+        #alert-label { font-size: 1.5vw; font-weight: 900; letter-spacing: 0.3em; color: #64748b; margin-bottom: 1vw; z-index: 2; transform: translateZ(0); }
+        #alert-title { font-size: 4vw; font-weight: 900; line-height: 1.2; text-transform: uppercase; z-index: 2; transform: translateZ(0); }
+
+        .countdown-wrapper { position: relative; width: 28vw; height: 28vw; display: flex; justify-content: center; align-items: center; margin: 3vw 0; z-index: 2; transform: translateZ(0); }
+        .ripple-effect { position: absolute; width: 100%; height: 100%; border-radius: 50%; background: rgba(15, 23, 42, 0.05); animation: rippleAnim 2s infinite; z-index: -1; transform: translateZ(0); }
+        .ripple-effect:nth-child(2) { animation-delay: 1s; }
+        @keyframes rippleAnim { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+
+        .countdown-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform: rotate(-90deg) translateZ(0); transition: opacity 0.5s; }
+        .countdown-bg { fill: none; stroke: rgba(15, 23, 42, 0.05); stroke-width: 1.5vw; }
+        .countdown-progress { fill: none; stroke-width: 1.5vw; stroke-linecap: round; stroke-dasharray: 251.2; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear, stroke 0.5s; }
+        
+        .theme-sholat .countdown-progress { stroke: #10b981; } .theme-vacuum .countdown-progress { stroke: #f59e0b; } 
+        .theme-jam .countdown-progress { stroke: #3b82f6; } .theme-dnd .countdown-progress { stroke: #6366f1; }
+        .theme-school .countdown-progress { stroke: #eab308; }
+
+        #alert-countdown { font-family: 'Bebas Neue', sans-serif; font-size: 15vw; line-height: 1; color: #0f172a; transform: translateZ(0); }
+        .pulse-text { animation: pulse-red 1s infinite; } 
+        @keyframes pulse-red { 0%, 100% { color: #0f172a; } 50% { color: #e11d48; } }
+        
+        .time-up #alert-countdown { font-size: 8vw; }
+        .time-reveal { animation: popInTime 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards !important; color: #1d4ed8 !important; }
+        .hide-ring { opacity: 0 !important; }
+        @keyframes popInTime { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1.5); opacity: 1; } }
+
+        .sholat-anim-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: none; z-index: 0; width: 60vw; height: 60vw; align-items: center; justify-content: center; opacity: 0.15; pointer-events: none; }
+        .theme-sholat .sholat-anim-container { display: flex; animation: pulseMoon 4s ease-in-out infinite; }
+        .moon-icon { position: relative; width: 35vw; height: 35vw; border-radius: 50%; box-shadow: inset -5vw 0 0 0 #10b981; }
+        .star-icon { position: absolute; width: 4vw; height: 4vw; background: #10b981; clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); animation: twinkleStar 1.5s infinite alternate; }
+        .star-icon.s1 { top: 5vw; left: 15vw; animation-delay: 0.5s; }
+        .star-icon.s2 { top: 15vw; right: 5vw; animation-delay: 1s; width: 6vw; height: 6vw; }
+        @keyframes pulseMoon { 0%, 100% { transform: translate(-50%, -50%) scale(1); } 50% { transform: translate(-50%, -50%) scale(1.05); } }
+        @keyframes twinkleStar { 0% { opacity: 0.3; transform: scale(0.8); } 100% { opacity: 1; transform: scale(1.2); } }
+
+        .school-anim-container { position: absolute; bottom: 8vw; left: 0; width: 100%; height: 20vw; display: none; z-index: 1; pointer-events: none; }
+        .theme-school .school-anim-container { display: block; }
+        .bus-wrapper { position: absolute; bottom: 0; left: 0; animation: driveBus 8s linear infinite; }
+        .bus-body { width: 35vw; height: 16vw; background: #facc15; border-radius: 4vw 4vw 1vw 1vw; position: relative; border: 0.8vw solid #ca8a04; box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
+        .bus-windows { position: absolute; top: 2.5vw; left: 2.5vw; right: 2.5vw; height: 6vw; display: flex; gap: 1vw; }
+        .bus-window { flex: 1; background: #bae6fd; border-radius: 1vw; border: 0.4vw solid #334155; }
+        .bus-wheel { position: absolute; bottom: -3vw; width: 7vw; height: 7vw; background: #334155; border-radius: 50%; border: 1.5vw solid #94a3b8; }
+        .bus-wheel.w1 { left: 4vw; animation: spinWheel 2s linear infinite; }
+        .bus-wheel.w2 { right: 4vw; animation: spinWheel 2s linear infinite; }
+        @keyframes driveBus { 0% { transform: translateX(-40vw); } 100% { transform: translateX(110vw); } }
+        @keyframes spinWheel { 100% { transform: rotate(360deg); } }
+
+        .vacuum-bot-container { position: absolute; bottom: 5vw; left: -15vw; width: 12vw; height: 12vw; display: none; z-index: 10; transform: translateZ(0); }
+        .theme-vacuum .vacuum-bot-container { display: block; animation: patrolRoom 15s ease-in-out infinite alternate; }
+        .vacuum-body { position: relative; width: 100%; height: 100%; border-radius: 50%; background: radial-gradient(circle at top, #334155, #0f172a); border: 4px solid #1e293b; display: flex; justify-content: center; align-items: center; }
+        .vacuum-sensor { width: 40%; height: 40%; border-radius: 50%; background: #000; border: 2px solid #334155; position: relative; }
+        .vacuum-light { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); width: 1vw; height: 1vw; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 10px #f59e0b; animation: vacuumBlink 1s infinite; }
+        .vacuum-brush { position: absolute; top: -5%; right: -5%; width: 4vw; height: 4vw; background: transparent; border: 2px dashed #94a3b8; border-radius: 50%; animation: spinBrush 0.5s linear infinite; opacity: 0.7; }
+        .vacuum-brush:nth-child(2) { top: -5%; left: -5%; right: auto; animation-direction: reverse; }
+        @keyframes patrolRoom { 0% { transform: translate3d(0,0,0) rotate(0deg); } 25% { transform: translate3d(30vw,0,0) rotate(45deg); } 50% { transform: translate3d(60vw,0,0) rotate(-20deg); } 75% { transform: translate3d(90vw,0,0) rotate(15deg); } 100% { transform: translate3d(120vw,0,0) rotate(0deg); } }
+        @keyframes vacuumBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @keyframes spinBrush { 100% { transform: rotate(360deg); } }
+
+        .dnd-anim-container { position: absolute; bottom: 8vw; display: none; z-index: 10; font-size: 5vw; font-weight: 900; color: #6366f1; }
+        .theme-dnd .dnd-anim-container { display: flex; animation: floatZ 3s ease-in-out infinite; }
+        @keyframes floatZ { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; } 50% { transform: translate(2vw, -2vw) scale(1.2); opacity: 1; } }
+
+        #smart-info-panel { position: fixed; left: 0; bottom: -50%; width: 100%; height: 35vh; background: rgba(255, 255, 255, 0.98); border-top: 1px solid #e2e8f0; box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.1); z-index: 90; display: flex; flex-direction: column; justify-content: center; transition: all 1s cubic-bezier(0.22, 1, 0.36, 1); border-radius: 3vw 3vw 0 0; overflow: hidden; pointer-events: none; visibility: hidden; transform: translateZ(0); }
+        
+        #smart-info-panel.state-small { bottom: 0; pointer-events: auto; visibility: visible; }
+        #smart-info-panel.state-expanded { bottom: 0; height: 100vh; border-radius: 0; pointer-events: auto; visibility: visible; }
+        
+        .smart-info-header { font-weight: 900; font-size: 1.2vw; letter-spacing: 0.3em; color: #475569; margin-left: 5vw; margin-bottom: 2vw; display: flex; align-items: center; gap: 10px; transition: opacity 0.5s; transform: translateZ(0); }
+        .live-dot { width: 10px; height: 10px; background-color: #10b981; border-radius: 50%; animation: pulse-dot 1.5s infinite; }
+        @keyframes pulse-dot { 0% { transform: scale(1); opacity: 1; } 70% { transform: scale(2); opacity: 0; } 100% { transform: scale(1); opacity: 0; } }
+        
+        #slider-view { width: 100%; overflow: hidden; transition: opacity 0.5s; opacity: 1; transform: translateZ(0); }
+        .slider-track { display: flex; gap: 2vw; width: max-content; animation: scrollInfo 25s linear infinite; padding-left: 5vw; }
+        @keyframes scrollInfo { 0% { transform: translate3d(0,0,0); } 100% { transform: translate3d(-50%,0,0); } }
+        .smart-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 1.5vw; padding: 1.5vw 2.5vw; width: 30vw; display: flex; align-items: center; gap: 1.5vw; }
+        .smart-card-icon { font-size: 3.5vw; } .smart-card-title { font-weight: 800; font-size: 1.2vw; color: #0f172a; margin-bottom: 0.3vw; } .smart-card-desc { font-weight: 500; font-size: 1vw; color: #64748b; line-height: 1.4; }
+
+        .expanded-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 3vw; opacity: 0; pointer-events: none; transform: scale(0.9) translateZ(0); transition: opacity 0.8s, transform 0.8s; visibility: hidden; }
+        #smart-info-panel.state-expanded #slider-view, #smart-info-panel.state-expanded .smart-info-header { opacity: 0; pointer-events: none; }
+        
+        #smart-info-panel.state-expanded.show-home #expanded-home { opacity: 1; transform: scale(1) translateZ(0); pointer-events: auto; visibility: visible; transition-delay: 0.3s; }
+        #smart-info-panel.state-expanded.show-weather #expanded-weather { opacity: 1; transform: scale(1) translateZ(0); pointer-events: auto; visibility: visible; transition-delay: 0.3s; }
+        
+        .big-warning-card { background: linear-gradient(135deg, #ffffff, #f8fafc); border: 1px solid #e2e8f0; border-radius: 2vw; width: 80%; padding: 4vw; display: flex; align-items: center; gap: 3vw; }
+        .big-icon { font-size: 7vw; background: #f1f5f9; padding: 2vw; border-radius: 1.5vw; min-width: 12vw; text-align: center; }
+        .big-text-container { text-align: left; } .big-title { font-size: 3vw; font-weight: 900; color: #0f172a; line-height: 1.1; margin-bottom: 1vw; } .big-desc { font-size: 1.5vw; font-weight: 500; color: #64748b; line-height: 1.4; }
+        .highlight-blue { color: #2563eb; } .highlight-green { color: #10b981; } 
+
+        #expanded-weather { overflow: hidden; background: #0f172a; color: white; border-radius: 0; }
+        .weather-content-wrapper { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 1vw; transform: translateZ(0); }
+        .huge-temp { font-family: 'Bebas Neue', sans-serif; font-size: 25vw; line-height: 0.8; }
+        .huge-cond { font-size: 4vw; font-weight: 900; text-transform: uppercase; letter-spacing: 0.2em; margin-bottom: 2vw; }
+        .weather-advice-box { background: rgba(255,255,255,0.1); padding: 2vw 4vw; border-radius: 2vw; border: 1px solid rgba(255,255,255,0.2); font-size: 1.8vw; font-weight: 500; max-width: 80%; }
+        
+        .weather-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; transition: all 1s; opacity: 0; transform: translateZ(0); }
+        .weather-sunny { opacity: 1; background: linear-gradient(135deg, #0ea5e9, #38bdf8); }
+        .weather-sunny::before { content: '☀️'; position: absolute; font-size: 40vw; top: -10vw; right: -10vw; animation: spinSlow 30s linear infinite; opacity: 0.8; }
+        .weather-cloudy { opacity: 1; background: linear-gradient(135deg, #64748b, #94a3b8); }
+        .weather-cloudy::before { content: '☁️'; position: absolute; font-size: 30vw; top: 10%; left: -20%; animation: floatCloud 20s linear infinite; }
+        .weather-cloudy::after { content: '☁️'; position: absolute; font-size: 40vw; bottom: -10%; right: -20%; animation: floatCloud 25s linear infinite reverse; opacity: 0.7; }
+        .weather-rainy { opacity: 1; background: linear-gradient(to bottom, #1e293b, #334155); }
+        .weather-rainy::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(255,255,255,0.2) 2px, transparent 2px), linear-gradient(90deg, rgba(255,255,255,0.2) 2px, transparent 2px); background-size: 20px 100px; animation: rainFall 0.8s linear infinite; opacity: 0.5; }
+        .weather-storm { opacity: 1; background: #0f172a; animation: lightning 5s infinite; }
+        .weather-storm::after { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-image: linear-gradient(rgba(255,255,255,0.3) 2px, transparent 2px); background-size: 10px 100px; animation: rainFall 0.5s linear infinite; opacity: 0.6; }
+        
+        @keyframes spinSlow { 100% { transform: rotate(360deg); } } @keyframes floatCloud { 0% { transform: translate3d(0,0,0); } 50% { transform: translate3d(100vw,0,0); } 100% { transform: translate3d(0,0,0); } }
+        @keyframes rainFall { 0% { background-position: 0 0; } 100% { background-position: 20px 100px; } } @keyframes lightning { 0%, 95%, 98% { background: #0f172a; } 96%, 99% { background: #cbd5e1; } }
+    </style>
+</head>
+<body>
+
+    <!-- Layar Utama Pembuka Audio -->
+    <div id="start-screen" onclick="startSmartClock()">
+        <h2>⚡ KETUK LAYAR ⚡</h2>
+        <p>Aktifkan Smart Clock & Sistem Audio</p>
+        <div class="pulse">START</div>
+    </div>
+
+    <!-- Panel Dev -->
+    <div id="dev-toggle" onclick="toggleTestPanel()" title="Tampilkan Panel Dev">⚙️</div>
+    <div id="test-panel">
+        <div class="test-title">PANEL PENGUJIAN AUDIO & UI</div>
+        
+        <div class="grid-btn-2">
+            <button class="btn-test btn-green" onclick="startTest('smartinfo')">👁️ Tes Full (00:00)</button>
+            <button class="btn-test btn-purple" onclick="startTest('school')">🎒 Tes Sekolah</button>
+        </div>
+        
+        <div class="grid-btn-4">
+            <button class="btn-test" onclick="forceTimeAudio(1)">Jam 1</button>
+            <button class="btn-test" onclick="forceTimeAudio(2)">Jam 2</button>
+            <button class="btn-test" onclick="forceTimeAudio(3)">Jam 3</button>
+            <button class="btn-test" onclick="forceTimeAudio(4)">Jam 4</button>
+            <button class="btn-test" onclick="forceTimeAudio(5)">Jam 5</button>
+            <button class="btn-test" onclick="forceTimeAudio(6)">Jam 6</button>
+            <button class="btn-test" onclick="forceTimeAudio(7)">Jam 7</button>
+            <button class="btn-test" onclick="forceTimeAudio(8)">Jam 8</button>
+            <button class="btn-test" onclick="forceTimeAudio(9)">Jam 9</button>
+            <button class="btn-test" onclick="forceTimeAudio(10)">Jam 10</button>
+            <button class="btn-test" onclick="forceTimeAudio(11)">Jam 11</button>
+            <button class="btn-test" onclick="forceTimeAudio(12)">Jam 12</button>
+        </div>
+        
+        <div class="grid-btn-2">
+            <button class="btn-test btn-orange" onclick="startTest('vacuum-warn')">🧹 Vacuum (H-5)</button>
+            <button class="btn-test btn-orange" onclick="startTest('vacuum-start')">🚀 Vacuum (Mulai)</button>
+            <button class="btn-test" onclick="startTest('sholat')">🕌 Waktu Sholat</button>
+            <button class="btn-test" onclick="startTest('15min')">⏳ Cek 15 Menit</button>
+            <button class="btn-test btn-wide" onclick="startTest('dnd')">🌙 Mode Malam</button>
+        </div>
+
+        <button class="btn-test btn-red btn-wide" style="margin-top:5px; padding: 10px;" onclick="stopTest()">⏹ Hentikan Tes & Bersihkan Audio</button>
+    </div>
+
+    <!-- UI Jam Flip -->
+    <div id="main-view">
+        <div id="clock-container">
+            <div class="flip-container" id="hours" data-val=""></div>
+            <div class="colon">:</div>
+            <div class="flip-container" id="minutes" data-val=""></div>
+            <div class="colon" style="font-size: 14vw; margin-top: 5vw; padding-bottom: 0;">:</div>
+            <div class="flip-container small" id="seconds" data-val=""></div>
+        </div>
+    </div>
+
+    <!-- Overlay Alert -->
+    <div id="overlay-container">
+        <div id="alert-card">
+            
+            <!-- Animasi Sholat Raksasa -->
+            <div class="sholat-anim-container"><div class="moon-icon"></div><div class="star-icon s1"></div><div class="star-icon s2"></div></div>
+            
+            <!-- Animasi Sekolah Lintas Layar -->
+            <div class="school-anim-container">
+                <div class="bus-wrapper">
+                    <div class="bus-body">
+                        <div class="bus-windows"><div class="bus-window"></div><div class="bus-window"></div><div class="bus-window"></div></div>
+                        <div class="bus-wheel w1"></div><div class="bus-wheel w2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Animasi Lainnya -->
+            <div class="vacuum-bot-container"><div class="vacuum-body"><div class="vacuum-brush"></div><div class="vacuum-brush"></div><div class="vacuum-sensor"><div class="vacuum-light"></div></div></div></div>
+            <div class="dnd-anim-container">Zzz...</div>
+
+            <div id="alert-label">Sistem Informasi</div>
+            <div id="alert-title">Judul</div>
+            <div class="countdown-wrapper" id="countdown-wrapper">
+                <div class="ripple-effect"></div><div class="ripple-effect"></div>
+                <svg class="countdown-svg" id="countdown-svg" viewBox="0 0 100 100">
+                    <circle class="countdown-bg" cx="50" cy="50" r="40"></circle>
+                    <circle class="countdown-progress" id="countdown-ring" cx="50" cy="50" r="40"></circle>
+                </svg>
+                <div id="alert-countdown">60</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel Informasi -->
+    <div id="smart-info-panel" class="state-small">
+        <div class="smart-info-header"><div class="live-dot"></div> STATUS SISTEM RUMAH</div>
+        <div id="slider-view"><div class="slider-track" id="slider-track"></div></div>
+        <div id="expanded-home" class="expanded-container">
+            <div class="big-warning-card">
+                <div class="big-icon">⚡</div>
+                <div class="big-text-container"><div class="big-title">GUNAKAN LISTRIK <br><span class="highlight-blue">DENGAN BIJAK</span></div><div class="big-desc">Sistem mendeteksi aktivitas tinggi. Matikan perangkat yang tidak digunakan.</div></div>
+            </div>
+            <div class="big-warning-card">
+                <div class="big-icon">🌬️</div>
+                <div class="big-text-container"><div class="big-title">MVAIR: PASTIKAN UDARA <br><span class="highlight-green">BERSIH</span></div><div class="big-desc">Sirkulasi dalam kondisi normal. Filter udara berfungsi optimal.</div></div>
+            </div>
+        </div>
+        <div id="expanded-weather" class="expanded-container">
+            <div id="weather-anim-layer" class="weather-bg weather-cloudy"></div> 
+            <div class="weather-content-wrapper">
+                <div id="w-temp" class="huge-temp">--°C</div>
+                <div id="w-cond" class="huge-cond">KEDAMEAN, GRESIK</div>
+                <div class="weather-advice-box"><span id="w-advice">Memuat status cuaca satelit...</span></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const jadwalSholat = { "04:12": "Subuh", "05:31": "Terbit", "11:27": "Zuhur", "14:49": "Asar", "17:23": "Magrib", "18:34": "Isya" };
+        const vacuumSchedules = ["08:15", "12:15", "15:15"];
+        const warnVacuumSchedules = vacuumSchedules.map(v => {
+            let [h, m] = v.split(':').map(Number);
+            m -= 5; if(m < 0) { m += 60; h -= 1; }
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        });
+
+        const smartCards = [
+            { icon: "💡", title: "Efisiensi Energi", desc: "Arus stabil. Pemakaian normal." },
+            { icon: "🌬️", title: "Sensor MVAir", desc: "AQI Terdeteksi: 45 (Baik)." },
+            { icon: "☀️", title: "Panel Surya", desc: "Produksi PLTS optimal." },
+            { icon: "🌡️", title: "Suhu Ruangan", desc: "Suhu 24°C, Kelembapan 55%." },
+            { icon: "🔒", title: "Keamanan", desc: "Akses pintu utama terkunci." }
+        ];
+
+        let currentWeatherClass = "weather-cloudy"; let currentTemp = "--"; let currentCond = "MEMUAT..."; let currentCondEN = "Loading..."; let currentAdvice = "Sistem sedang mengkalibrasi...";
+
+        async function fetchWeather() {
+            try {
+                const apiKey = "33d987ce7bc684062ae339cd177b4395";
+                const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=Kedamean,ID&units=metric&appid=${apiKey}&lang=id`);
+                const data = await res.json();
+                if (data.cod === 200) {
+                    currentTemp = Math.round(data.main.temp); currentCond = data.weather[0].description.toUpperCase(); currentCondEN = data.weather[0].main; 
+                    const mc = data.weather[0].main.toLowerCase();
+                    if (mc.includes('clear')) { currentWeatherClass = 'weather-sunny'; currentAdvice = currentTemp > 33 ? "Cuaca panas! Pastikan ruangan sejuk." : "Cuaca cerah. Sangat baik untuk sirkulasi."; } 
+                    else if (mc.includes('cloud')) { currentWeatherClass = 'weather-cloudy'; currentAdvice = "Cuaca berawan. Sirkulasi udara normal."; } 
+                    else if (mc.includes('rain') || mc.includes('drizzle')) { currentWeatherClass = 'weather-rainy'; currentAdvice = "Hujan turun! Pastikan pintu & jendela tertutup."; } 
+                    else if (mc.includes('thunderstorm')) { currentWeatherClass = 'weather-storm'; currentAdvice = "Badai Petir! Cabut perangkat rawan."; } 
+                    else { currentWeatherClass = 'weather-cloudy'; currentAdvice = "Cuaca normal. Sistem beroperasi dengan baik."; }
+                }
+            } catch (error) { console.error("Weather API Error"); }
+        }
+        fetchWeather(); setInterval(fetchWeather, 30 * 60 * 1000);
+
+        const AudioEngine = {
+            queue: [],
+            isPlaying: false,
+            ctx: null,
+            init() {
+                if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+            },
+            enqueue(taskFn) {
+                this.queue.push(taskFn);
+                this.process();
+            },
+            clear() {
+                this.queue = [];
+                if (typeof responsiveVoice !== 'undefined' && responsiveVoice.isPlaying()) responsiveVoice.cancel();
+            },
+            async process() {
+                if (this.isPlaying || this.queue.length === 0) return;
+                this.isPlaying = true;
+                while (this.queue.length > 0) {
+                    const task = this.queue.shift();
+                    try { this.init(); await task(); } catch(e) { console.error("Audio Task Error", e); }
+                    await new Promise(r => setTimeout(r, 300));
+                }
+                this.isPlaying = false;
+            },
+            
+            speak(text, lang = "id") {
+                return new Promise(resolve => {
+                    let isResolved = false;
+                    const finish = () => { if (!isResolved) { isResolved = true; resolve(); } };
+                    const timeout = setTimeout(finish, Math.max(4000, text.length * 150)); 
+                    
+                    if (typeof responsiveVoice !== 'undefined') {
+                        try {
+                            if (responsiveVoice.isPlaying()) responsiveVoice.cancel();
+                            let voiceType = lang === "id" ? "Indonesian Female" : "US English Female";
+                            responsiveVoice.speak(text, voiceType, { pitch: 1.0, rate: 0.85, volume: 1.0, onend: () => { clearTimeout(timeout); finish(); }, onerror: () => { clearTimeout(timeout); finish(); } });
+                            return;
+                        } catch (e) { }
+                    }
+                    
+                    if ('speechSynthesis' in window) {
+                        const u = new SpeechSynthesisUtterance(text);
+                        u.lang = lang === "id" ? 'id-ID' : 'en-US';
+                        u.onend = () => { clearTimeout(timeout); finish(); };
+                        u.onerror = () => { clearTimeout(timeout); finish(); };
+                        speechSynthesis.speak(u);
+                    } else { finish(); }
+                });
+            },
+
+            playPianoNote(freq, duration) {
+                return new Promise(resolve => {
+                    const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain(); const filter = this.ctx.createBiquadFilter();
+                    osc.type = 'triangle'; osc.frequency.value = freq;
+                    filter.type = 'lowpass'; filter.frequency.setValueAtTime(800, this.ctx.currentTime); filter.frequency.exponentialRampToValueAtTime(300, this.ctx.currentTime + 1.5);
+                    gain.gain.setValueAtTime(0, this.ctx.currentTime); gain.gain.linearRampToValueAtTime(0.4, this.ctx.currentTime + 0.02); gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 2.5);
+                    osc.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+                    osc.start(); osc.stop(this.ctx.currentTime + 3);
+                    setTimeout(resolve, duration * 1000);
+                });
+            },
+            async playMelody(hour12) {
+                const notes = { 'G3': 196.00, 'A3': 220.00, 'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'D#5': 622.25, 'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00, 'G#4': 415.30, 'A4': 440.00, 'B4': 493.88, 'C5': 523.25, 'D5': 587.33, 'E5': 659.25 };
+                const melodies = {
+                    1: [ {n:'D4', d:0.5}, {n:'F#4', d:0.5}, {n:'A4', d:0.5}, {n:'F#4', d:0.5}, {n:'D4', d:0.5}, {n:'A3', d:0.5}, {n:'D4', d:0.5}, {n:'F#4', d:1.0} ], 
+                    2: [ {n:'E4', d:0.8}, {n:'C4', d:0.8}, {n:'D4', d:0.8}, {n:'G3', d:1.2}, {n:'G3', d:0.8}, {n:'D4', d:0.8}, {n:'E4', d:0.8}, {n:'C4', d:1.0} ], 
+                    3: [ {n:'E4', d:0.5}, {n:'E4', d:0.5}, {n:'F4', d:0.5}, {n:'G4', d:0.5}, {n:'G4', d:0.5}, {n:'F4', d:0.5}, {n:'E4', d:0.5}, {n:'D4', d:0.5}, {n:'C4', d:1.0} ], 
+                    4: [ {n:'G4', d:0.6}, {n:'D4', d:0.6}, {n:'G4', d:0.6}, {n:'D4', d:0.6}, {n:'G4', d:0.4}, {n:'B4', d:0.4}, {n:'D5', d:1.2} ], 
+                    5: [ {n:'E4', d:0.6}, {n:'E4', d:0.6}, {n:'G4', d:1.2}, {n:'E4', d:0.6}, {n:'E4', d:0.6}, {n:'G4', d:1.2} ]
+                };
+                const song = melodies[hour12] || melodies[1];
+                for (let note of song) { await this.playPianoNote(notes[note.n], note.d); }
+                await new Promise(r => setTimeout(r, 500));
+            },
+            playGong() {
+                return new Promise(resolve => {
+                    const dur = 4.5; const o1 = this.ctx.createOscillator(); const o2 = this.ctx.createOscillator(); const o3 = this.ctx.createOscillator(); const g = this.ctx.createGain();
+                    o1.type = 'sine'; o1.frequency.value = 130.81; o2.type = 'sine'; o2.frequency.value = 261.63; o3.type = 'triangle'; o3.frequency.value = 349.23; 
+                    g.gain.setValueAtTime(0.6, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + dur);
+                    o1.connect(g); o2.connect(g); o3.connect(g); g.connect(this.ctx.destination);
+                    o1.start(); o2.start(); o3.start(); o1.stop(this.ctx.currentTime + dur); o2.stop(this.ctx.currentTime + dur); o3.stop(this.ctx.currentTime + dur);
+                    setTimeout(resolve, 1500); 
+                });
+            },
+            async playVacuumBell() {
+                const f = [659.25, 523.25, 659.25, 523.25]; // E5 C5 E5 C5
+                for (let freq of f) { await this.playPianoNote(freq, 0.2); }
+            },
+            async playInfoChime() {
+                await this.playPianoNote(523.25, 0.1); await this.playPianoNote(659.25, 0.2); // C5 E5
+            }
+        };
+
+        const ClockEngine = {
+            triggerEvent(type, h = 0, m = 0) {
+                const hour12 = h % 12 || 12;
+                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                
+                if (type === 'sholat') {
+                    const sholatName = jadwalSholat[timeStr] || "Magrib";
+                    if (sholatName === "Terbit") {
+                        AudioEngine.enqueue(() => AudioEngine.speak(`Selamat pagi! Saat ini telah memasuki waktu terbit, waktunya bangun.`, "id"));
+                        AudioEngine.enqueue(() => AudioEngine.speak(`Good morning! The sun has risen, time to wake up.`, "en"));
+                    } else {
+                        AudioEngine.enqueue(() => AudioEngine.speak(`Saat ini telah memasuki waktu sholat ${sholatName}.`, "id"));
+                    }
+                } 
+                else if (type === 'vacuum-warn') {
+                    AudioEngine.enqueue(() => AudioEngine.playVacuumBell());
+                    AudioEngine.enqueue(() => AudioEngine.speak("Perhatian, lima menit lagi robot vacuum akan bekerja. Mohon bersihkan benda-benda yang berserakan di lantai.", "id"));
+                    AudioEngine.enqueue(() => AudioEngine.speak("Attention, the robot vacuum will start in five minutes. Please clear items on the floor.", "en"));
+                } 
+                else if (type === 'vacuum-start') {
+                    AudioEngine.enqueue(() => AudioEngine.speak("Robot vacuum mulai membersihkan rumah sekarang.", "id"));
+                    AudioEngine.enqueue(() => AudioEngine.speak("The robot vacuum is starting to clean the house now.", "en"));
+                } 
+                else if (type === '15min') {
+                    AudioEngine.enqueue(() => AudioEngine.playInfoChime());
+                    AudioEngine.enqueue(() => AudioEngine.speak(`Sekarang jam ${hour12} lebih ${m} menit.`, "id"));
+                    AudioEngine.enqueue(() => AudioEngine.speak(`It is ${m} minutes past ${hour12}.`, "en"));
+                } 
+                else if (type === 'hourly') {
+                    if (h === 22) {
+                        AudioEngine.enqueue(() => AudioEngine.playMelody(hour12));
+                        AudioEngine.enqueue(() => AudioEngine.speak("Mode jangan ganggu telah diaktifkan. Waktunya istirahat. Selamat malam.", "id"));
+                        AudioEngine.enqueue(() => AudioEngine.speak("Do not disturb mode is activated. Good night.", "en"));
+                        return;
+                    }
+                    
+                    AudioEngine.enqueue(() => AudioEngine.playMelody(hour12));
+                    AudioEngine.enqueue(() => AudioEngine.speak(`Sekarang jam ${hour12} tepat.`, "id"));
+                    AudioEngine.enqueue(() => AudioEngine.speak(`It is exactly ${hour12} o'clock.`, "en"));
+
+                    const isSchoolDay = (new Date().getDay() >= 1 && new Date().getDay() <= 5);
+                    if (h === 6) { 
+                        AudioEngine.enqueue(() => AudioEngine.speak("Selamat pagi dan selamat bangun! Waktunya mandi dan bersiap pergi ke sekolah. Semangat!", "id"));
+                        AudioEngine.enqueue(() => AudioEngine.speak("Good morning! Time to wake up, take a bath and get ready for school!", "en"));
+                    }
+                    
+                    AudioEngine.enqueue(() => AudioEngine.playInfoChime());
+                    if (currentTemp !== "--") {
+                        AudioEngine.enqueue(() => AudioEngine.speak(`Kondisi cuaca di Kedamean saat ini ${currentCond.toLowerCase()}, dengan suhu ${currentTemp} derajat celcius.`, "id"));
+                        AudioEngine.enqueue(() => AudioEngine.speak(`Current weather is ${currentCondEN.toLowerCase()}, with temperature of ${currentTemp} degrees.`, "en"));
+                    } else {
+                        AudioEngine.enqueue(() => AudioEngine.speak("Sistem sedang mengkalibrasi data cuaca dari satelit.", "id"));
+                    }
+
+                    for(let i=0; i < hour12; i++) { AudioEngine.enqueue(() => AudioEngine.playGong()); }
+                }
+            },
+
+            checkRealtimeEvents(h, m) {
+                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                const isDND = (h >= 22 || h < 4);
+
+                if (jadwalSholat[timeStr]) {
+                    this.triggerEvent('sholat', h, m);
+                } else if (warnVacuumSchedules.includes(timeStr)) {
+                    this.triggerEvent('vacuum-warn', h, m);
+                } else if (vacuumSchedules.includes(timeStr)) {
+                    this.triggerEvent('vacuum-start', h, m);
+                } else if (m === 0) {
+                    if (!isDND || h === 22) this.triggerEvent('hourly', h, m);
+                } else if (m === 15 || m === 30 || m === 45) {
+                    if (!isDND) this.triggerEvent('15min', h, m);
+                }
+            }
+        };
+
+        function createFlipHalf(c, v) { const d = document.createElement('div'); d.className = c; const t = document.createElement('div'); t.className = 'flip-inner-text'; t.innerText = v; d.appendChild(t); return d; }
+        
+        function updateFlip(elementId, newValue) {
+            const el = document.getElementById(elementId);
+            if (!el) return; const currentValue = el.dataset.val;
+            if (currentValue === newValue) return; 
+            
+            if (currentValue === undefined || currentValue === "") {
+                el.dataset.val = newValue; el.innerHTML = '';
+                el.appendChild(createFlipHalf('flip-half flip-top', newValue)); el.appendChild(createFlipHalf('flip-half flip-bottom', newValue));
+                return;
+            }
+
+            el.dataset.val = newValue; el.innerHTML = ''; 
+            const topStatic = createFlipHalf('flip-half flip-top', newValue);
+            const bottomStatic = createFlipHalf('flip-half flip-bottom', currentValue);
+            const flapTop = createFlipHalf('flip-flap flap-top', currentValue);
+            const flapBottom = createFlipHalf('flip-flap flap-bottom', newValue);
+
+            el.appendChild(topStatic); el.appendChild(bottomStatic); el.appendChild(flapTop); el.appendChild(flapBottom);
+            void el.offsetWidth; 
+            flapTop.classList.add('flip-fold-down'); flapBottom.classList.add('flip-unfold-down');
+
+            setTimeout(() => {
+                if (el.dataset.val === newValue) {
+                    el.innerHTML = ''; el.appendChild(createFlipHalf('flip-half flip-top', newValue)); el.appendChild(createFlipHalf('flip-half flip-bottom', newValue));
+                }
+            }, 600);
+        }
+
+        const elSliderTrack = document.getElementById('slider-track');
+        let cardsHTML = ''; smartCards.forEach(c => cardsHTML += `<div class="smart-card"><div class="smart-card-icon">${c.icon}</div><div><div class="smart-card-title">${c.title}</div><div class="smart-card-desc">${c.desc}</div></div></div>`); elSliderTrack.innerHTML = cardsHTML + cardsHTML; 
+
+        const elMainView = document.getElementById('main-view'); const elOverlayContainer = document.getElementById('overlay-container'); const elAlertLabel = document.getElementById('alert-label'); const elAlertTitle = document.getElementById('alert-title'); 
+        const elAlertCountdown = document.getElementById('alert-countdown'); const elCountdownRing = document.getElementById('countdown-ring'); const elCountdownWrapper = document.getElementById('countdown-wrapper'); const elCountdownSvg = document.getElementById('countdown-svg');
+        const elSmartInfoPanel = document.getElementById('smart-info-panel'); const elAnimLayer = document.getElementById('weather-anim-layer');
+        const elWTemp = document.getElementById('w-temp'); const elWCond = document.getElementById('w-cond'); const elWAdvice = document.getElementById('w-advice');
+
+        let isTesting = false; let testSisaWaktu = 0; let activeTestType = "";
+        let lastMinuteProcessed = new Date().getMinutes(); 
+
+        function toggleTestPanel() { document.getElementById('test-panel').classList.toggle('show'); }
+        
+        function startTest(type) { 
+            stopTest(); AudioEngine.init(); isTesting = true; activeTestType = type;
+            testSisaWaktu = 10; // Hitung mundur 10 detik sebelum eksekusi aksi
+            updateUI(new Date()); 
+        }
+        function stopTest() { isTesting = false; activeTestType = ""; AudioEngine.clear(); updateUI(new Date()); }
+
+        // Pemicu dari tombol tes
+        function forceTimeAudio(h) { stopTest(); AudioEngine.init(); ClockEngine.triggerEvent('hourly', h, 0); }
+
+        function startSmartClock() {
+            AudioEngine.init();
+            document.getElementById('start-screen').style.opacity = '0';
+            setTimeout(() => { document.getElementById('start-screen').style.display = 'none'; }, 800);
+            document.getElementById('dev-toggle').style.display = 'block';
+            
+            const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>{});
+            AudioEngine.enqueue(() => AudioEngine.speak("Sistem jam pintar siap digunakan.", "id"));
+            
+            updateLoop(); setInterval(updateLoop, 1000);
+        }
+
+        function updateLoop() {
+            const now = new Date();
+            updateFlip('hours', String(now.getHours()).padStart(2, '0'));
+            updateFlip('minutes', String(now.getMinutes()).padStart(2, '0'));
+            updateFlip('seconds', String(now.getSeconds()).padStart(2, '0'));
+            
+            if (isTesting) { 
+                if (testSisaWaktu === 0) {
+                    // Eksekusi suara DIJAMIN TEPAT saat hitung mundur habis (0 detik)
+                    if (activeTestType === 'smartinfo') { ClockEngine.triggerEvent('hourly', 12, 0); }
+                    else if (activeTestType === 'vacuum-warn') { ClockEngine.triggerEvent('vacuum-warn', 8, 10); }
+                    else if (activeTestType === 'vacuum-start') { ClockEngine.triggerEvent('vacuum-start', 8, 15); }
+                    else if (activeTestType === '15min') { ClockEngine.triggerEvent('15min', 12, 15); }
+                    else if (activeTestType === 'school') { ClockEngine.triggerEvent('hourly', 6, 0); }
+                    else if (activeTestType === 'sholat') { ClockEngine.triggerEvent('sholat', 17, 23); } // Simulasi Magrib
+                    else if (activeTestType === 'dnd') { ClockEngine.triggerEvent('hourly', 22, 0); }
+                }
+                
+                if (testSisaWaktu < -30) { isTesting = false; activeTestType = ""; } 
+                else { testSisaWaktu--; }
+            }
+            
+            // Suara Waktu Nyata (Hanya dipicu 1x saat detik mereset ke 00)
+            if (now.getMinutes() !== lastMinuteProcessed && now.getSeconds() === 0) {
+                lastMinuteProcessed = now.getMinutes();
+                ClockEngine.checkRealtimeEvents(now.getHours(), now.getMinutes());
+            }
+            updateUI(now);
+        }
+
+        function updateUI(nowDate) {
+            let showAlert = false; let alertTitle = ""; let alertLabel = ""; let alertClass = ""; let isActionNow = false; let sisaTampil = 0; let totalDurasi = 60;
+            let smartState = 'hidden'; let expandPhase = ''; 
+
+            const currH = String(nowDate.getHours()).padStart(2, '0'); const currM = String(nowDate.getMinutes()).padStart(2, '0'); const currS = nowDate.getSeconds();
+            const nextMinDate = new Date(nowDate.getTime() + (60 - currS) * 1000);
+            const nextTimeStr = `${String(nextMinDate.getHours()).padStart(2, '0')}:${String(nextMinDate.getMinutes()).padStart(2, '0')}`;
+            const currTimeStr = `${currH}:${currM}`;
+            const isSchoolDay = (nowDate.getDay() >= 1 && nowDate.getDay() <= 5);
+
+            if (isTesting) {
+                let isAction = testSisaWaktu <= 0;
+                let timeElapsed = Math.abs(testSisaWaktu); 
+                
+                if (!isAction) { showAlert = true; sisaTampil = testSisaWaktu; totalDurasi = 10; }
+                isActionNow = isAction;
+
+                if (activeTestType === 'smartinfo') { 
+                    if (!isAction) { alertClass = "theme-jam"; alertLabel = "PERGANTIAN WAKTU"; alertTitle = "MENUJU PUKUL 12:00"; }
+                    else {
+                        showAlert = false; // Popup mati tepat di 0 detik
+                        if (timeElapsed >= 5 && timeElapsed < 10) { smartState = 'state-small'; } 
+                        else if (timeElapsed >= 10 && timeElapsed < 20) { smartState = 'state-expanded'; expandPhase = 'show-home'; } 
+                        else if (timeElapsed >= 20 && timeElapsed <= 30) { smartState = 'state-expanded'; expandPhase = 'show-weather'; }
+                    }
+                }
+                else if (activeTestType === '15min') {
+                    if (!isAction) { alertClass = "theme-jam"; alertLabel = "PERGANTIAN WAKTU"; alertTitle = "MENUJU PUKUL 12:15"; }
+                    else { showAlert = false; } 
+                }
+                else if (activeTestType === 'school') {
+                    if (!isAction) { alertClass = "theme-school"; alertLabel = "RUTINITAS PAGI"; alertTitle = "PERSIAPAN SEKOLAH"; }
+                    else { showAlert = true; alertClass = "theme-school"; alertLabel = "RUTINITAS PAGI"; alertTitle = "WAKTUNYA SEKOLAH!"; if (timeElapsed >= 6) showAlert = false; }
+                }
+                else if (activeTestType === 'dnd') {
+                    if (!isAction) { alertClass = "theme-dnd"; alertLabel = "SISTEM TIDUR"; alertTitle = "MENUJU MODE JANGAN GANGGU"; }
+                    else { showAlert = true; alertClass = "theme-dnd"; alertLabel = "SISTEM TIDUR"; alertTitle = "MODE JANGAN GANGGU AKTIF"; if (timeElapsed >= 6) showAlert = false; }
+                }
+                else if (activeTestType === 'vacuum-warn') { 
+                    if (!isAction) { alertClass = "theme-vacuum"; alertLabel = "PERINGATAN SISTEM"; alertTitle = "PERSIAPAN VACUUM (H-5)"; }
+                    else { showAlert = true; alertClass = "theme-vacuum"; alertLabel = "PERINGATAN SISTEM"; alertTitle = "SEGERA MULAI"; if (timeElapsed >= 15) showAlert = false; }
+                } 
+                else if (activeTestType === 'vacuum-start') { 
+                    if (!isAction) { alertClass = "theme-vacuum"; alertLabel = "SMART HOME AKTIF"; alertTitle = "MEMULAI VACUUM"; }
+                    else { showAlert = true; alertClass = "theme-vacuum"; alertLabel = "SMART HOME AKTIF"; alertTitle = "VACUUM BEKERJA"; if (timeElapsed >= 15) showAlert = false; }
+                } 
+                else if (activeTestType === 'sholat') { 
+                    if (!isAction) { alertClass = "theme-sholat"; alertLabel = "WAKTU IBADAH"; alertTitle = "MENUJU WAKTU MAGRIB"; }
+                    else { showAlert = true; alertClass = "theme-sholat"; alertLabel = "WAKTU IBADAH"; alertTitle = "MASUK WAKTU MAGRIB"; if (timeElapsed >= 15) showAlert = false; }
+                }
+            } else {
+                
+                // EVENT REAL-TIME (Animasi Muncul Pas Jam Kejadian)
+                if (currS < 15) {
+                    if (jadwalSholat[currTimeStr]) { showAlert = true; alertClass = 'theme-sholat'; alertLabel = 'WAKTU IBADAH'; alertTitle = `MASUK WAKTU ${jadwalSholat[currTimeStr]}`; isActionNow = true; }
+                    else if (currTimeStr === '06:00' && isSchoolDay && currS < 6) { showAlert = true; alertClass = 'theme-school'; alertLabel = 'RUTINITAS PAGI'; alertTitle = 'WAKTUNYA SEKOLAH!'; isActionNow = true; }
+                    else if (vacuumSchedules.includes(currTimeStr)) { showAlert = true; alertClass = 'theme-vacuum'; alertLabel = 'SMART HOME AKTIF'; alertTitle = 'ROBOT VACUUM BEKERJA'; isActionNow = true; }
+                    else if (warnVacuumSchedules.includes(currTimeStr)) { showAlert = true; alertClass = 'theme-vacuum'; alertLabel = 'PERINGATAN SISTEM'; alertTitle = 'PERSIAPAN VACUUM (H-5)'; isActionNow = true; }
+                    else if (currTimeStr === "22:00" && currS < 6) { showAlert = true; alertClass = 'theme-dnd'; alertLabel = 'SISTEM TIDUR'; alertTitle = 'MODE JANGAN GANGGU AKTIF'; isActionNow = true; }
+                }
+
+                // HITUNG MUNDUR MENUJU EVENT REAL-TIME (Berjalan di menit 59)
+                if (!showAlert && currS >= 0) {
+                    if (jadwalSholat[nextTimeStr]) { showAlert = true; alertClass = 'theme-sholat'; alertLabel = 'PERSIAPAN IBADAH'; alertTitle = `MENUJU WAKTU ${jadwalSholat[nextTimeStr]}`; }
+                    else if (nextTimeStr === '06:00' && isSchoolDay) { showAlert = true; alertClass = 'theme-school'; alertLabel = 'PERSIAPAN PAGI'; alertTitle = 'MENUJU WAKTU SEKOLAH'; }
+                    else if (vacuumSchedules.includes(nextTimeStr) || warnVacuumSchedules.includes(nextTimeStr)) { showAlert = true; alertClass = 'theme-vacuum'; alertLabel = 'PERINGATAN SISTEM'; alertTitle = 'PERSIAPAN ROBOT VACUUM'; }
+                    else if (nextTimeStr === "22:00") { showAlert = true; alertClass = 'theme-dnd'; alertLabel = 'PERSIAPAN TIDUR'; alertTitle = 'MENUJU MODE JANGAN GANGGU'; }
+                    else if (nextMinDate.getMinutes() % 15 === 0) { showAlert = true; alertClass = 'theme-jam'; alertLabel = 'PERGANTIAN WAKTU'; alertTitle = `MENUJU PUKUL ${nextTimeStr}`; }
+                }
+                
+                // PANEL INFORMASI NAIK SETELAH JAM TEPAT (Detik ke-5 dst)
+                if (!showAlert && currM === '00' && currH !== '22' && currH !== '06') {
+                    if (currS >= 0 && currS < 5) { smartState = 'hidden'; } 
+                    else if (currS >= 5 && currS < 10) { smartState = 'state-small'; } 
+                    else if (currS >= 10 && currS < 20) { smartState = 'state-expanded'; expandPhase = 'show-home'; } 
+                    else if (currS >= 20 && currS < 30) { smartState = 'state-expanded'; expandPhase = 'show-weather'; } 
+                }
+                
+                if (showAlert) smartState = 'hidden'; 
+                sisaTampil = 60 - currS; totalDurasi = 60;
+            }
+            
+            let progressOffset = 251.2 * (1 - (sisaTampil / totalDurasi));
+
+            if (showAlert) {
+                elOverlayContainer.className = 'active ' + alertClass; 
+                elAlertLabel.innerText = alertLabel; elAlertTitle.innerText = alertTitle; 
+                
+                if (isActionNow) { 
+                    elAlertCountdown.classList.remove("time-reveal"); elAlertCountdown.classList.add("pulse-text"); elCountdownSvg.classList.remove("hide-ring");
+                    elAlertCountdown.innerText = "SEKARANG"; elCountdownWrapper.classList.add("time-up"); elCountdownRing.style.strokeDashoffset = 251.2; 
+                } else { 
+                    elAlertCountdown.innerText = sisaTampil; elCountdownWrapper.classList.remove("time-up"); elCountdownSvg.classList.remove("hide-ring");
+                    elCountdownRing.style.strokeDashoffset = progressOffset;
+                    if (sisaTampil <= 10) elAlertCountdown.classList.add("pulse-text"); else elAlertCountdown.classList.remove("pulse-text"); 
+                    elAlertCountdown.classList.remove("time-reveal");
+                }
+            } else { 
+                elOverlayContainer.className = ''; elAlertCountdown.classList.remove("pulse-text"); elAlertCountdown.classList.remove("time-reveal");
+            }
+
+            if (smartState === 'state-small') { elSmartInfoPanel.className = 'state-small'; } 
+            else if (smartState === 'state-expanded') {
+                elSmartInfoPanel.className = 'state-expanded ' + expandPhase;
+                if (expandPhase === 'show-weather') {
+                    elAnimLayer.className = 'weather-bg ' + currentWeatherClass;
+                    elWTemp.innerText = currentTemp + '°C'; elWCond.innerText = currentCond; elWAdvice.innerText = currentAdvice;
+                }
+            } else { elSmartInfoPanel.className = ''; }
+
+            if (showAlert || smartState === 'state-expanded') elMainView.classList.add('dimmed'); else elMainView.classList.remove('dimmed');
+        }
+    </script>
+</body>
+</html>
