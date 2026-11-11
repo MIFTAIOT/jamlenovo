@@ -1,0 +1,2080 @@
+```html
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Clock Dashboard - Master Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    
+    <script src="https://code.responsivevoice.org/responsivevoice.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background-color: #f8fafc; color: #0f172a; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden; font-family: 'Montserrat', sans-serif; position: relative;
+            transition: background-color 2.5s ease, color 2.5s ease;
+        }
+
+        /* LATAR BELAKANG STATIS ESTETIK (OPASITAS SAMAR, BERUBAH TIAP JAM TANPA ANIMASI GERAK) */
+        #static-bg-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -2; opacity: 0.07; pointer-events: none;
+            background-repeat: repeat;
+            transition: background-image 2s ease, opacity 2s ease;
+        }
+        body.night-mode #static-bg-layer { opacity: 0.12; }
+
+        /* Mode Malam */
+        body.night-mode { background-color: #0b1120; color: #f8fafc; }
+        body.night-mode .flip-half, body.night-mode .flip-flap { background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); color: #f8fafc; border-color: #334155; }
+        body.night-mode .flip-inner-text { color: #f8fafc; }
+        body.night-mode .flip-container { background: #0b1120; box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.7); }
+        body.night-mode .colon { color: #475569; }
+        body.night-mode #date-text { background: linear-gradient(90deg, #94a3b8, #f8fafc, #94a3b8); -webkit-background-clip: text; }
+
+        #start-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #0b1120; color: #ffffff;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            text-align: center; z-index: 9999; cursor: pointer; transition: opacity 0.8s ease;
+        }
+        #start-screen h2 { font-size: 3vw; margin-bottom: 1vw; color: #38bdf8; letter-spacing: 0.1em; }
+        #start-screen p { font-size: 1.5vw; color: #94a3b8; }
+        #start-screen .pulse { animation: pulse-start 1.5s infinite; margin-top: 2vw; padding: 1vw 3vw; border: 2px solid #38bdf8; border-radius: 50px; font-weight: bold; font-size: 1.5vw; letter-spacing: 2px;}
+        @keyframes pulse-start { 0%, 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); } 50% { box-shadow: 0 0 0 20px rgba(56, 189, 248, 0); } }
+
+        /* TOGGLE & PANEL KONTROL MASTER */
+        #dev-toggle { 
+            position: fixed; top: 20px; right: 20px; font-size: 1.6vw; opacity: 0.35; 
+            cursor: pointer; z-index: 1001; transition: 0.3s cubic-bezier(0.1, 0.9, 0.2, 1); 
+            background: rgba(15,23,42,0.1); padding: 12px; border-radius: 50%; display: none; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        body.night-mode #dev-toggle { background: rgba(255,255,255,0.1); }
+        #dev-toggle:hover { opacity: 1; transform: rotate(45deg) scale(1.1); }
+        
+        #test-panel { 
+            position: fixed; top: 0; right: -490px; width: 450px; height: 100vh;
+            display: flex; flex-direction: column; z-index: 1000; 
+            background: rgba(255,255,255,0.97); backdrop-filter: blur(25px);
+            box-shadow: -15px 0 40px rgba(0,0,0,0.3); border-left: 1px solid rgba(226,232,240,1);
+            transition: right 0.5s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+        body.night-mode #test-panel { background: rgba(11,17,32,0.97); border-color: rgba(51,65,85,1); color: #f8fafc; }
+        #test-panel.show { right: 0; }
+
+        .panel-header { padding: 18px 20px; border-bottom: 1px solid rgba(0,0,0,0.08); display: flex; justify-content: space-between; align-items: center; }
+        body.night-mode .panel-header { border-color: rgba(255,255,255,0.1); }
+        .panel-title { font-size: 13px; font-weight: 900; letter-spacing: 0.15em; text-transform: uppercase; color: #0284c7; }
+        .panel-close-btn { background: none; border: none; font-size: 18px; cursor: pointer; color: #94a3b8; font-weight: bold; }
+        .panel-close-btn:hover { color: #e11d48; }
+
+        .panel-content { padding: 16px 20px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+        .panel-content::-webkit-scrollbar { width: 6px; }
+        .panel-content::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 4px; }
+
+        .section-label { font-size: 10.5px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #64748b; margin-bottom: 5px; }
+        body.night-mode .section-label { color: #94a3b8; }
+        .section-box { background: rgba(0,0,0,0.03); padding: 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.05); display: flex; flex-direction: column; gap: 7px; }
+        body.night-mode .section-box { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.08); }
+
+        .btn-ctrl { 
+            background: #0f172a; border: none; padding: 9px 12px; border-radius: 6px; 
+            font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; 
+            color: #ffffff; transition: 0.2s cubic-bezier(0.1, 0.9, 0.2, 1); text-align: left; 
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        body.night-mode .btn-ctrl { background: #1e293b; }
+        .btn-ctrl:hover { background: #0284c7; transform: translateX(3px); }
+        .btn-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .btn-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+
+        .btn-orange-hero { background: #f59e0b !important; color: #ffffff !important; font-weight: 800; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35); text-align: center; justify-content: center; }
+        .btn-orange-hero:hover { background: #d97706 !important; transform: scale(1.02); }
+        .btn-green-hero { background: #10b981 !important; color: #ffffff !important; font-weight: 800; text-align: center; justify-content: center; }
+        .btn-green-hero:hover { background: #059669 !important; transform: scale(1.02); }
+        .btn-red-hero { background: #e11d48 !important; color: #ffffff !important; font-weight: 800; text-align: center; justify-content: center; }
+
+        /* MULTITASKING SPLIT-SCREEN LAYOUT */
+        #main-view { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            gap: 2vw; transform: translateZ(0);
+            transition: width 0.85s cubic-bezier(0.1, 0.9, 0.2, 1), 
+                        transform 0.85s cubic-bezier(0.1, 0.9, 0.2, 1), 
+                        opacity 0.7s cubic-bezier(0.1, 0.9, 0.2, 1), 
+                        filter 0.7s ease;
+        }
+        #main-view.dimmed { opacity: 0.08; filter: blur(8px); pointer-events: none; }
+        
+        body.split-active #main-view {
+            width: 50%;
+            transform: scale(0.66) translateZ(0);
+            transform-origin: center center;
+        }
+
+        #clock-container { display: flex; gap: 2vw; align-items: center; filter: drop-shadow(0 25px 40px rgba(15, 23, 42, 0.15)); }
+        
+        .flip-container { position: relative; width: 28vw; height: 26vw; perspective: 1200px; border-radius: 1vw; box-shadow: 0 15px 30px -10px rgba(15, 23, 42, 0.15); background: #cbd5e1; transform: translateZ(0); }
+        .flip-container.small { width: 16vw; height: 15vw; margin-top: 5vw; }
+        .flip-half, .flip-flap {
+            position: absolute; left: 0; width: 100%; height: 50%; overflow: hidden;
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            border: 1px solid #e2e8f0; backface-visibility: hidden; transform: translateZ(0);
+        }
+        .flip-top, .flap-top { top: 0; border-radius: 1vw 1vw 0 0; transform-origin: bottom; border-bottom: 1px solid rgba(15,23,42,0.1); }
+        .flip-bottom, .flap-bottom { bottom: 0; border-radius: 0 0 1vw 1vw; transform-origin: top; border-top: none; }
+        .flap-top { z-index: 2; } .flap-bottom { z-index: 2; transform: rotateX(90deg); }
+        
+        .flip-inner-text { position: absolute; top: 0; left: 0; width: 100%; height: 26vw; line-height: 26vw; text-align: center; font-size: 24vw; color: #0f172a; font-family: 'Bebas Neue', sans-serif; }
+        .flip-bottom .flip-inner-text, .flap-bottom .flip-inner-text { top: -13vw; }
+        .flip-container.small .flip-inner-text { height: 15vw; line-height: 15vw; font-size: 14vw; }
+        .flip-container.small .flip-bottom .flip-inner-text, .flip-container.small .flap-bottom .flip-inner-text { top: -7.5vw; }
+        
+        .flip-fold-down { animation: foldDown 0.3s cubic-bezier(0.4, 0.0, 1, 1) forwards; }
+        .flip-unfold-down { animation: unfoldDown 0.3s cubic-bezier(0.0, 0.0, 0.2, 1) 0.3s forwards; }
+        @keyframes foldDown { 0% { transform: rotateX(0deg); } 100% { transform: rotateX(-90deg); } }
+        @keyframes unfoldDown { 0% { transform: rotateX(90deg); } 100% { transform: rotateX(0deg); } }
+
+        .colon { font-family: 'Bebas Neue', sans-serif; font-size: 18vw; color: #94a3b8; animation: blink 1s ease-in-out infinite; padding-bottom: 2vw; transform: translateZ(0); }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+
+        /* Teks Tanggal */
+        #date-text { 
+            font-size: 3.5vw; 
+            font-weight: 900; 
+            letter-spacing: 0.5em; 
+            background: linear-gradient(90deg, #475569, #0f172a, #475569);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-transform: uppercase; 
+            transition: all 1.5s; 
+            z-index: 2; 
+            text-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            margin-right: -0.5em;
+        }
+
+        /* 1. NOTIFIKASI PERINGATAN FULL-SCREEN TAKEOVER */
+        #overlay-container { 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            pointer-events: none; z-index: 150; opacity: 0; visibility: hidden; 
+            background: rgba(11, 17, 32, 0.94); backdrop-filter: blur(40px);
+            transition: opacity 0.6s cubic-bezier(0.1, 0.9, 0.2, 1), visibility 0.6s cubic-bezier(0.1, 0.9, 0.2, 1); 
+            text-align: center; padding: 4vw;
+        }
+        #overlay-container.active { pointer-events: auto; opacity: 1; visibility: visible; } 
+        
+        .notif-ambient-glow {
+            position: absolute; width: 75vw; height: 75vw; border-radius: 50%;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            filter: blur(90px); opacity: 0.4; z-index: -2; pointer-events: none;
+            transition: background 1s ease;
+        }
+        .theme-sholat .notif-ambient-glow { background: radial-gradient(circle, #059669 0%, #10b981 40%, transparent 75%); }
+        .theme-vacuum .notif-ambient-glow { background: radial-gradient(circle, #f59e0b 0%, transparent 70%); }
+        .theme-jam .notif-ambient-glow { background: radial-gradient(circle, #0284c7 0%, transparent 70%); }
+        .theme-dnd .notif-ambient-glow { background: radial-gradient(circle, #6366f1 0%, transparent 70%); }
+        .theme-school .notif-ambient-glow { background: radial-gradient(circle, #eab308 0%, transparent 70%); }
+
+        #alert-label-badge { 
+            display: inline-flex; align-items: center; gap: 12px;
+            font-size: 1.2vw; font-weight: 800; letter-spacing: 0.35em; color: #ffffff; 
+            margin-bottom: 2vw; padding: 0.8vw 2.2vw; border-radius: 50px;
+            background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2); text-transform: uppercase; z-index: 5;
+        }
+        .notif-pulse-dot {
+            width: 10px; height: 10px; border-radius: 50%; background: #38bdf8;
+            box-shadow: 0 0 12px #38bdf8; animation: dotPulse 1.2s infinite;
+        }
+        @keyframes dotPulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(0.7); } }
+        
+        #alert-title { 
+            font-size: 5.2vw; font-weight: 900; line-height: 1.1; 
+            text-transform: uppercase; color: #ffffff; letter-spacing: 0.04em;
+            text-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); margin-bottom: 2vw;
+            transform: translateY(20px); opacity: 0; z-index: 5;
+            transition: transform 0.6s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.6s ease;
+        }
+        #overlay-container.active #alert-title { transform: translateY(0); opacity: 1; }
+
+        /* COUNTDOWN ULTRA-MODERN CYBER-RADIAL HUD */
+        .hud-countdown-container {
+            position: relative; width: 22vw; height: 22vw;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            margin-top: 1vw; z-index: 5;
+        }
+        .hud-countdown-svg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            transform: rotate(-90deg); filter: drop-shadow(0 0 15px rgba(56, 189, 248, 0.5));
+        }
+        .hud-circle-bg { fill: none; stroke: rgba(255, 255, 255, 0.08); stroke-width: 1.2vw; }
+        .hud-circle-progress { 
+            fill: none; stroke: #38bdf8; stroke-width: 1.2vw; stroke-linecap: round;
+            stroke-dasharray: 251.2; stroke-dashoffset: 0;
+            transition: stroke-dashoffset 1s linear, stroke 0.5s;
+        }
+        .theme-sholat .hud-circle-progress { stroke: #10b981; filter: drop-shadow(0 0 15px rgba(16, 185, 129, 0.8)); }
+        .theme-vacuum .hud-circle-progress { stroke: #f59e0b; filter: drop-shadow(0 0 15px rgba(245, 158, 11, 0.8)); }
+        .theme-school .hud-circle-progress { stroke: #eab308; filter: drop-shadow(0 0 15px rgba(234, 179, 8, 0.8)); }
+        .theme-dnd .hud-circle-progress { stroke: #818cf8; filter: drop-shadow(0 0 15px rgba(129, 140, 248, 0.8)); }
+
+        .hud-number-display {
+            font-family: 'Bebas Neue', sans-serif; font-size: 9.5vw; line-height: 1;
+            color: #ffffff; text-shadow: 0 0 25px rgba(255, 255, 255, 0.5);
+            letter-spacing: 0.02em; z-index: 2;
+        }
+        .hud-unit-label {
+            font-size: 1vw; font-weight: 800; letter-spacing: 0.3em;
+            color: #94a3b8; text-transform: uppercase; margin-top: -0.5vw; z-index: 2;
+        }
+        
+        .pulse-text { animation: pulse-urgent 1s infinite; }
+        @keyframes pulse-urgent { 0%, 100% { color: #ffffff; } 50% { color: #f43f5e; text-shadow: 0 0 35px #f43f5e; } }
+        .time-up .hud-number-display { font-size: 5vw; color: #38bdf8; }
+
+        /* ANIMASI SHOLAT LENGKAP & MEGAH (SILUET MASJID, BULAN SABIT & BINTANG GLOWING) */
+        .sholat-anim-container {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            display: none; z-index: 1; pointer-events: none; overflow: hidden;
+        }
+        .theme-sholat .sholat-anim-container { display: block; }
+        
+        .sholat-sky-decor {
+            position: absolute; top: 10vh; width: 100vw; display: flex; justify-content: center; align-items: center;
+        }
+        .moon-crescent-art {
+            position: relative; width: 20vw; height: 20vw; border-radius: 50%;
+            box-shadow: inset -3.5vw 0 0 0 #34d399; filter: drop-shadow(0 0 45px rgba(52, 211, 153, 0.8));
+            animation: moonGlowPulse 4s ease-in-out infinite alternate;
+        }
+        @keyframes moonGlowPulse { 0% { transform: scale(0.95); opacity: 0.8; } 100% { transform: scale(1.05); opacity: 1; } }
+
+        .stars-field { position: absolute; top: 0; left: 0; width: 100%; height: 50%; }
+        .star-dot {
+            position: absolute; background: #34d399; border-radius: 50%;
+            clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+            animation: twinkleStarFx 2s infinite alternate;
+        }
+        .star-dot.d1 { top: 12vh; left: 18vw; width: 3.5vw; height: 3.5vw; animation-delay: 0.3s; }
+        .star-dot.d2 { top: 25vh; right: 20vw; width: 4.5vw; height: 4.5vw; animation-delay: 0.8s; }
+        .star-dot.d3 { top: 18vh; right: 35vw; width: 2.5vw; height: 2.5vw; animation-delay: 1.4s; }
+        @keyframes twinkleStarFx { 0% { opacity: 0.3; transform: scale(0.7) rotate(0deg); } 100% { opacity: 1; transform: scale(1.2) rotate(25deg); filter: drop-shadow(0 0 15px #34d399); } }
+
+        .mosque-silhouette {
+            position: absolute; bottom: 0; left: 0; width: 100vw; height: 38vh;
+            display: flex; justify-content: center; align-items: flex-end; opacity: 0.28;
+            filter: drop-shadow(0 0 40px rgba(16, 185, 129, 0.5));
+            animation: mosqueSubtlePulse 5s ease-in-out infinite alternate;
+        }
+        @keyframes mosqueSubtlePulse { 0% { opacity: 0.22; } 100% { opacity: 0.32; } }
+
+        /* Animasi Sekolah */
+        .school-anim-container { position: absolute; bottom: 8vh; left: 0; width: 100vw; height: 35vh; display: none; z-index: 1; pointer-events: none; opacity: 0.8; }
+        .theme-school .school-anim-container { display: block; }
+        .bus-wrapper { position: absolute; bottom: 0; left: 0; animation: driveBusFull 10s linear infinite; }
+        .bus-body { width: 45vw; height: 20vw; background: #facc15; border-radius: 5vw 5vw 1.5vw 1.5vw; position: relative; border: 0.8vw solid #ca8a04; box-shadow: 0 25px 50px rgba(0,0,0,0.5); }
+        .bus-windows { position: absolute; top: 2.5vw; left: 2.5vw; right: 2.5vw; height: 8vw; display: flex; gap: 1.2vw; }
+        .bus-window { flex: 1; background: #bae6fd; border-radius: 1.2vw; border: 0.4vw solid #334155; }
+        .bus-wheel { position: absolute; bottom: -3.5vw; width: 8.5vw; height: 8.5vw; background: #334155; border-radius: 50%; border: 1.5vw solid #94a3b8; }
+        .bus-wheel.w1 { left: 5vw; animation: spinWheel 2s linear infinite; } .bus-wheel.w2 { right: 5vw; animation: spinWheel 2s linear infinite; }
+        @keyframes driveBusFull { 0% { transform: translateX(-50vw); } 100% { transform: translateX(110vw); } }
+        @keyframes spinWheel { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* ROBOT VACUUM MERAYAP (AKTIF SELAMA SPLIT-SCREEN 2 JAM) */
+        .vacuum-bot-container { 
+            position: fixed; bottom: 6vh; left: -20vw; width: 16vw; height: 16vw; 
+            display: none; z-index: 88; transform: translateZ(0); pointer-events: none; 
+        }
+        .theme-vacuum:not(.split-active) .vacuum-bot-container { display: block; animation: patrolRoomFull 20s ease-in-out infinite alternate; }
+        body.split-active .vacuum-bot-container { display: block; animation: patrolSplitLeft 16s ease-in-out infinite alternate; }
+        
+        .vacuum-body { 
+            position: relative; width: 100%; height: 100%; border-radius: 50%; 
+            background: radial-gradient(circle at top, #334155, #0f172a); 
+            border: 0.5vw solid #1e293b; display: flex; justify-content: center; align-items: center; 
+            box-shadow: 0 20px 45px rgba(0,0,0,0.45); 
+        }
+        .vacuum-sensor { width: 40%; height: 40%; border-radius: 50%; background: #000; border: 0.3vw solid #334155; position: relative; }
+        .vacuum-light { 
+            position: absolute; top: 10%; left: 50%; transform: translateX(-50%); 
+            width: 1.5vw; height: 1.5vw; border-radius: 50%; background: #f59e0b; 
+            box-shadow: 0 0 15px #f59e0b; animation: vacuumBlink 1s infinite; 
+        }
+        .vacuum-brush { 
+            position: absolute; top: -5%; right: -5%; width: 5.5vw; height: 5.5vw; 
+            background: transparent; border: 0.4vw dashed #94a3b8; border-radius: 50%; 
+            animation: spinBrush 0.5s linear infinite; opacity: 0.7; 
+        }
+        .vacuum-brush:nth-child(2) { top: -5%; left: -5%; right: auto; animation-direction: reverse; }
+        
+        @keyframes spinBrush { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes vacuumBlink { 0%, 100% { opacity: 1; filter: drop-shadow(0 0 15px #f59e0b); } 50% { opacity: 0.2; filter: none; } }
+        
+        @keyframes patrolRoomFull { 
+            0% { transform: translate3d(0, 0, 0) rotate(0deg); } 
+            25% { transform: translate3d(40vw, -10vh, 0) rotate(45deg); } 
+            50% { transform: translate3d(80vw, 5vh, 0) rotate(-20deg); } 
+            75% { transform: translate3d(50vw, -20vh, 0) rotate(15deg); } 
+            100% { transform: translate3d(100vw, 10vh, 0) rotate(0deg); } 
+        }
+        @keyframes patrolSplitLeft { 
+            0% { transform: translate3d(2vw, 0, 0) rotate(0deg); } 
+            25% { transform: translate3d(18vw, -6vh, 0) rotate(35deg); } 
+            50% { transform: translate3d(30vw, 2vh, 0) rotate(-25deg); } 
+            75% { transform: translate3d(16vw, -10vh, 0) rotate(15deg); } 
+            100% { transform: translate3d(4vw, 4vh, 0) rotate(0deg); } 
+        }
+
+
+        /* BANNER TIMER 5 MENIT & DOCK ROBOT VACUUM */
+        #vacuum-pre-banner { position: fixed; top: 3vh; left: 50%; transform: translate(-50%, -140%); z-index: 86; display: flex; align-items: center; gap: 1.4vw; padding: 1vw 2.2vw 1.4vw; border-radius: 1.6vw; background: rgba(255,255,255,0.92); border: 2px solid rgba(245,158,11,0.5); box-shadow: 0 15px 40px rgba(15,23,42,0.18); backdrop-filter: blur(18px); opacity: 0; pointer-events: none; transition: transform 0.7s cubic-bezier(0.1,0.9,0.2,1), opacity 0.5s; overflow: hidden; }
+        #vacuum-pre-banner.show { transform: translate(-50%, 0); opacity: 1; }
+        body.night-mode #vacuum-pre-banner { background: rgba(11,17,32,0.92); color: #f8fafc; box-shadow: 0 15px 40px rgba(0,0,0,0.6); }
+        .vpb-ico { font-size: 3vw; }
+        .vpb-title { font-size: 0.9vw; font-weight: 800; letter-spacing: 0.22em; color: #d97706; }
+        .vpb-time { font-family: 'Bebas Neue', sans-serif; font-size: 3.6vw; line-height: 1; letter-spacing: 0.05em; color: #b45309; }
+        body.night-mode .vpb-time { color: #fbbf24; }
+        .vpb-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 0.45vw; background: rgba(245,158,11,0.15); }
+        .vpb-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#f59e0b,#fbbf24); transition: width 1s linear; }
+        body.vac-docking .vacuum-bot-container { display: block; animation: none; }
+        .vac-dock { position: fixed; bottom: calc(6vh + 3vw); left: 0; width: 4.5vw; height: 10vw; border-radius: 0 1.2vw 1.2vw 0; background: linear-gradient(160deg,#475569,#1e293b); border: 0.3vw solid #0f172a; border-left: 0; z-index: 87; display: none; box-shadow: 0 12px 30px rgba(0,0,0,0.35); }
+        body.vac-docking .vac-dock { display: block; transition: transform 1.6s ease-in, opacity 1.6s; }
+        body.vac-away .vac-dock { transform: translateX(-130%); opacity: 0; }
+        .vac-dock-led { position: absolute; top: 1vw; right: 0.9vw; width: 1vw; height: 1vw; border-radius: 50%; background: #f59e0b; box-shadow: 0 0 12px #f59e0b; }
+        body.vac-charging .vac-dock-led { background: #22c55e; box-shadow: 0 0 14px #22c55e; animation: vacuumBlink 1.6s infinite; }
+        .vac-dock-label { position: absolute; left: 5vw; top: -3.2vw; white-space: nowrap; font-size: 1.4vw; font-weight: 800; letter-spacing: 0.12em; padding: 0.5vw 1.2vw; border-radius: 2vw; background: rgba(15,23,42,0.88); color: #86efac; }
+        body.vac-docking .vacuum-light { background: #f59e0b; }
+        body.vac-charging .vacuum-light { background: #22c55e; box-shadow: 0 0 15px #22c55e; }
+        body.vac-charging .vacuum-brush { animation-play-state: paused; }
+
+        .dnd-anim-container { position: absolute; bottom: 10vh; right: 10vw; display: none; z-index: 1; font-size: 8vw; font-weight: 900; color: #6366f1; }
+        .theme-dnd .dnd-anim-container { display: flex; animation: floatZ 4s ease-in-out infinite; }
+        @keyframes floatZ { 0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.5; } 50% { transform: translate(5vw, -10vh) scale(1.5); opacity: 1; text-shadow: 0 0 30px #6366f1; } }
+
+        /* PANEL SPLIT-SCREEN MULTITASKING (SISI KANAN 50%) */
+        #vacuum-timer-panel {
+            position: fixed; top: 0; right: 0; width: 50%; height: 100%;
+            background: rgba(255, 255, 255, 0.88); backdrop-filter: blur(25px);
+            border-left: 2px solid rgba(245, 158, 11, 0.4);
+            box-shadow: -20px 0 50px rgba(15, 23, 42, 0.15);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: 3vw 4vw; z-index: 85; text-align: center;
+            transform: translateX(100%);
+            transition: transform 0.85s cubic-bezier(0.1, 0.9, 0.2, 1);
+            pointer-events: none;
+        }
+        body.night-mode #vacuum-timer-panel {
+            background: rgba(11, 17, 32, 0.94); border-left: 2px solid rgba(245, 158, 11, 0.4);
+            box-shadow: -20px 0 50px rgba(0, 0, 0, 0.6); color: #f8fafc;
+        }
+        body.split-active #vacuum-timer-panel { transform: translateX(0); pointer-events: auto; }
+        #vacuum-timer-panel::before {
+            content: ''; position: absolute; top: 50%; left: -6px; transform: translateY(-50%);
+            width: 10px; height: 55px; background: #f59e0b; border-radius: 5px;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.8);
+        }
+
+        .vtp-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0.6vw 1.6vw; border-radius: 50px;
+            background: rgba(245, 158, 11, 0.15); color: #d97706;
+            font-size: 1vw; font-weight: 800; letter-spacing: 0.25em; text-transform: uppercase;
+            margin-bottom: 1.5vw; border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        body.night-mode .vtp-badge { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border-color: rgba(245, 158, 11, 0.4); }
+        .vtp-title { font-size: 2.8vw; font-weight: 900; line-height: 1.15; text-transform: uppercase; letter-spacing: 0.05em; color: #0f172a; margin-bottom: 0.5vw; }
+        body.night-mode .vtp-title { color: #f8fafc; }
+        .vtp-sub { font-size: 1.1vw; font-weight: 600; color: #64748b; letter-spacing: 0.15em; margin-bottom: 2vw; }
+        body.night-mode .vtp-sub { color: #94a3b8; }
+        
+        .vtp-timer-box { margin: 1vw 0 2vw; }
+        .vtp-countdown-display { font-family: 'Bebas Neue', sans-serif; font-size: 8.5vw; line-height: 1; letter-spacing: 0.04em; color: #b45309; text-shadow: 0 10px 25px rgba(245, 158, 11, 0.25); }
+        body.night-mode .vtp-countdown-display { color: #fbbf24; text-shadow: 0 10px 30px rgba(245, 158, 11, 0.45); }
+        
+        .vtp-progress-section { width: 90%; max-width: 520px; margin: 1vw 0 2vw; }
+        .vtp-progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8vw; font-size: 1vw; font-weight: 800; letter-spacing: 0.15em; color: #64748b; }
+        body.night-mode .vtp-progress-header { color: #94a3b8; }
+        .vtp-progress-pct { font-family: 'Bebas Neue', sans-serif; font-size: 1.8vw; color: #f59e0b; }
+        
+        .vtp-progress-track { width: 100%; height: 1.2vw; max-height: 14px; min-height: 8px; background: rgba(15, 23, 42, 0.08); border-radius: 1vw; overflow: hidden; position: relative; }
+        body.night-mode .vtp-progress-track { background: rgba(255, 255, 255, 0.1); }
+        .vtp-progress-fill { height: 100%; width: 0%; border-radius: 1vw; background: linear-gradient(90deg, #f59e0b, #fbbf24); box-shadow: 0 0 15px rgba(245, 158, 11, 0.5); transition: width 0.4s ease; }
+
+        .vtp-stats-row { display: flex; gap: 1vw; justify-content: center; width: 90%; max-width: 520px; margin-bottom: 2vw; }
+        .vtp-stat-card { flex: 1; background: rgba(255, 255, 255, 0.7); border: 1px solid #e2e8f0; border-radius: 1vw; padding: 1vw; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+        body.night-mode .vtp-stat-card { background: #1e293b; border-color: #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .vtp-stat-label { font-size: 0.75vw; font-weight: 800; letter-spacing: 0.15em; color: #64748b; margin-bottom: 0.3vw; text-transform: uppercase; }
+        body.night-mode .vtp-stat-label { color: #94a3b8; }
+        .vtp-stat-value { font-size: 1.3vw; font-weight: 800; color: #0f172a; }
+        body.night-mode .vtp-stat-value { color: #f8fafc; }
+
+        .vtp-controls { display: flex; gap: 1vw; align-items: center; justify-content: center; }
+        .vtp-btn { padding: 0.8vw 1.6vw; border-radius: 0.8vw; font-family: 'Montserrat', sans-serif; font-size: 0.95vw; font-weight: 800; letter-spacing: 0.1em; cursor: pointer; border: none; transition: 0.2s cubic-bezier(0.1, 0.9, 0.2, 1); }
+        .vtp-btn-stop { background: rgba(225, 29, 72, 0.12); color: #e11d48; border: 1px solid rgba(225, 29, 72, 0.25); }
+        .vtp-btn-stop:hover { background: #e11d48; color: #ffffff; transform: scale(1.03); }
+        .vtp-btn-speed { background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .vtp-btn-speed:hover { background: #f59e0b; color: #ffffff; transform: scale(1.03); }
+        body.night-mode .vtp-btn-speed { color: #fbbf24; }
+
+        /* 2. FULL-SCREEN WINDOWS 8 LIVE TILES DENGAN FLIP FOKUS CUACA & UDARA */
+        #metro-fullscreen-tiles {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(11, 17, 32, 0.96); backdrop-filter: blur(40px);
+            z-index: 120; opacity: 0; pointer-events: none; visibility: hidden;
+            display: flex; flex-direction: column; justify-content: flex-start;
+            padding: 3vw 5vw; perspective: 1500px;
+            transition: opacity 0.7s cubic-bezier(0.1, 0.9, 0.2, 1), visibility 0.7s cubic-bezier(0.1, 0.9, 0.2, 1);
+        }
+        #metro-fullscreen-tiles.show-tiles { opacity: 1; pointer-events: auto; visibility: visible; }
+
+        .metro-top-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 2vw; padding-bottom: 1vw; border-bottom: 2px solid rgba(255, 255, 255, 0.12);
+        }
+        .metro-title-group { display: flex; align-items: center; gap: 15px; }
+        .metro-live-dot { width: 14px; height: 14px; border-radius: 50%; background: #10b981; box-shadow: 0 0 15px #10b981; animation: metroPulse 1.5s infinite; }
+        @keyframes metroPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.85); opacity: 0.5; } }
+        .metro-main-title { font-size: 1.8vw; font-weight: 900; letter-spacing: 0.2em; text-transform: uppercase; color: #ffffff; }
+        .metro-subtitle { font-size: 0.9vw; font-weight: 600; letter-spacing: 0.3em; color: #94a3b8; text-transform: uppercase; }
+        .metro-btn-close { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); color: #ffffff; font-family: 'Montserrat', sans-serif; font-size: 0.85vw; font-weight: 800; letter-spacing: 0.15em; padding: 0.7vw 1.6vw; border-radius: 50px; cursor: pointer; transition: 0.2s cubic-bezier(0.1, 0.9, 0.2, 1); }
+        .metro-btn-close:hover { background: #e11d48; border-color: #e11d48; transform: scale(1.05); }
+
+        #metro-tiles-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            grid-auto-rows: minmax(13vw, auto); gap: 1.6vw; width: 100%; height: 100%;
+            transition: transform 0.8s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.8s ease;
+            transform-style: preserve-3d;
+        }
+
+        .metro-tile {
+            position: relative; border-radius: 1vw; overflow: hidden;
+            padding: 1.8vw; color: #ffffff; display: flex; flex-direction: column;
+            justify-content: space-between; box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+            transition: transform 0.4s cubic-bezier(0.1, 0.9, 0.2, 1), box-shadow 0.4s ease;
+            transform: translateY(40px) scale(0.96); opacity: 0;
+        }
+        #metro-fullscreen-tiles.show-tiles .metro-tile { transform: translateY(0) scale(1); opacity: 1; transition: transform 0.75s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.75s cubic-bezier(0.1, 0.9, 0.2, 1); }
+        #metro-fullscreen-tiles.show-tiles .metro-tile:nth-child(1) { transition-delay: 0.04s; }
+        #metro-fullscreen-tiles.show-tiles .metro-tile:nth-child(2) { transition-delay: 0.10s; }
+        #metro-fullscreen-tiles.show-tiles .metro-tile:nth-child(3) { transition-delay: 0.16s; }
+        #metro-fullscreen-tiles.show-tiles .metro-tile:nth-child(4) { transition-delay: 0.22s; }
+        #metro-fullscreen-tiles.show-tiles .metro-tile:nth-child(5) { transition-delay: 0.28s; }
+        #metro-fullscreen-tiles.show-tiles .metro-tile:nth-child(6) { transition-delay: 0.34s; }
+
+        .tile-wide { grid-column: span 2; }
+        .tile-blue { background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%); }
+        .tile-emerald { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
+        .tile-amber { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); }
+        .tile-violet { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); }
+        .tile-teal { background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%); }
+        .tile-dark { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid rgba(255, 255, 255, 0.1); }
+
+        .tile-badge { font-size: 0.85vw; font-weight: 800; letter-spacing: 0.25em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; opacity: 0.9; }
+        .tile-center-content { display: flex; align-items: baseline; gap: 1.5vw; margin: 0.8vw 0; }
+        .tile-hero-metric { font-family: 'Bebas Neue', sans-serif; font-size: 6.5vw; line-height: 0.85; letter-spacing: 0.02em; text-shadow: 0 10px 25px rgba(0, 0, 0, 0.3); }
+        .tile-hero-text { font-size: 1.7vw; font-weight: 900; line-height: 1.15; text-transform: uppercase; }
+        .tile-desc { font-size: 1.1vw; font-weight: 500; line-height: 1.4; opacity: 0.95; background: rgba(0, 0, 0, 0.18); padding: 0.8vw 1.2vw; border-radius: 0.6vw; }
+        .tile-subgrid { display: flex; gap: 1.2vw; margin-top: 0.8vw; }
+        .tile-substat { background: rgba(255, 255, 255, 0.12); padding: 0.4vw 0.8vw; border-radius: 0.4vw; font-size: 0.9vw; font-weight: 700; }
+
+        /* KARTU SHOWCASE RAKSASA FLIP */
+        #metro-showcase-container {
+            position: absolute; top: 7.5vw; left: 5vw; right: 5vw; bottom: 3vw;
+            display: flex; justify-content: center; align-items: center;
+            transform: rotateY(90deg) scale(0.9); opacity: 0; pointer-events: none;
+            transition: transform 0.8s cubic-bezier(0.1, 0.9, 0.2, 1), opacity 0.7s ease;
+            perspective: 1200px; z-index: 130;
+        }
+        #metro-showcase-container.active { transform: rotateY(0deg) scale(1); opacity: 1; pointer-events: auto; }
+
+        .showcase-card {
+            width: 100%; height: 100%; border-radius: 2vw; padding: 3vw 4vw;
+            display: flex; flex-direction: column; justify-content: space-between;
+            color: #ffffff; position: relative; overflow: hidden;
+            box-shadow: 0 35px 80px rgba(0, 0, 0, 0.6);
+        }
+
+        .showcase-weather-sunny { background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 50%, #38bdf8 100%); }
+        .showcase-weather-cloudy { background: linear-gradient(135deg, #475569 0%, #64748b 50%, #94a3b8 100%); }
+        .showcase-weather-rainy { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%); }
+        .showcase-weather-storm { background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e1b4b 100%); }
+
+        .weather-fx-sun {
+            position: absolute; width: 45vw; height: 45vw; top: -15vw; right: -15vw;
+            background: radial-gradient(circle, rgba(253, 224, 71, 0.75) 0%, transparent 65%);
+            border-radius: 50%; animation: pulseSunFx 4s infinite alternate; pointer-events: none;
+        }
+        @keyframes pulseSunFx { 0% { transform: scale(0.9); opacity: 0.8; } 100% { transform: scale(1.15); opacity: 1; } }
+
+        .weather-fx-cloud {
+            position: absolute; font-size: 35vw; opacity: 0.25; top: 10%; right: -5%;
+            animation: driftCloudFx 25s linear infinite alternate; pointer-events: none;
+        }
+        @keyframes driftCloudFx { 0% { transform: translateX(5vw); } 100% { transform: translateX(-15vw); } }
+
+        .weather-fx-rain {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: linear-gradient(15deg, rgba(255,255,255,0.4) 1px, transparent 1px);
+            background-size: 15px 120px; animation: rainFallFx 0.35s linear infinite; pointer-events: none; opacity: 0.6;
+        }
+        @keyframes rainFallFx { 0% { background-position: 0 0; } 100% { background-position: -20px 120px; } }
+
+        .showcase-aqi-good { background: linear-gradient(135deg, #059669 0%, #10b981 100%); }
+        .showcase-aqi-fair { background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%); }
+        .showcase-aqi-poor { background: linear-gradient(135deg, #e11d48 0%, #be123c 100%); }
+
+        .aqi-fx-particles {
+            position: absolute; top: 0; left: 0; width: 200%; height: 200%;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.3) 2px, transparent 3px);
+            background-size: 70px 70px; animation: aqiBreezeFx 12s linear infinite; pointer-events: none; opacity: 0.7;
+        }
+        @keyframes aqiBreezeFx { 0% { transform: translate(0, 0); } 100% { transform: translate(-30vw, -30vh); } }
+
+        /* ANIMASI KUALITAS UDARA: daun melayang, angin, riak, kabut */
+        .aqi-fx-wrap { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+        .aqi-leaf { position: absolute; top: -12%; left: var(--x); font-size: calc(2vw + var(--s) * 1.2vw); opacity: 0.85; animation: aqiLeaf var(--d) linear infinite; animation-delay: var(--dl); }
+        @keyframes aqiLeaf { 0% { transform: translate(0, -10vh) rotate(0deg); } 50% { transform: translate(7vw, 45vh) rotate(200deg); } 100% { transform: translate(-5vw, 115vh) rotate(380deg); } }
+        .aqi-wind { position: absolute; left: -35%; top: var(--y); width: 35%; height: 0.25vw; border-radius: 1vw; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.75), transparent); animation: aqiWind var(--d) linear infinite; animation-delay: var(--dl); }
+        @keyframes aqiWind { to { transform: translateX(400%); } }
+        .aqi-ring { position: absolute; right: 8vw; top: 50%; width: 26vw; height: 26vw; margin-top: -13vw; border-radius: 50%; border: 0.5vw solid rgba(255,255,255,0.4); animation: aqiRing 3.6s ease-out infinite; }
+        @keyframes aqiRing { 0% { transform: scale(0.45); opacity: 0.9; } 100% { transform: scale(1.5); opacity: 0; } }
+        .aqi-haze { position: absolute; top: var(--y); width: 55vw; height: 26vw; border-radius: 50%; background: radial-gradient(closest-side, var(--c), transparent); animation: aqiHaze var(--d) ease-in-out infinite alternate; animation-delay: var(--dl); }
+        @keyframes aqiHaze { 0% { transform: translateX(-15vw); } 100% { transform: translateX(65vw); } }
+        .aqi-dust { position: absolute; left: var(--x); top: var(--y); width: 0.5vw; height: 0.5vw; border-radius: 50%; background: rgba(255,255,255,0.7); animation: aqiDust var(--d) ease-in-out infinite alternate; animation-delay: var(--dl); }
+        @keyframes aqiDust { 0% { transform: translate(0, 0); opacity: 0.2; } 100% { transform: translate(5vw, -8vh); opacity: 0.9; } }
+
+        /* AURA WARNA LATAR (BERGANTI TIAP JAM, TANPA GERAK, HALUS) */
+        .hour-aura { position: absolute; inset: 0; z-index: -3; opacity: 0; pointer-events: none; transition: opacity 3s ease; }
+        .hour-aura.on { opacity: 0.42; }
+        body.night-mode .hour-aura.on { opacity: 0.3; }
+
+        .showcase-header { font-size: 1.3vw; font-weight: 800; letter-spacing: 0.35em; text-transform: uppercase; z-index: 2; display: flex; align-items: center; gap: 12px; }
+        .showcase-body { z-index: 2; margin: 1vw 0; }
+        .showcase-huge-metric { font-family: 'Bebas Neue', sans-serif; font-size: 14vw; line-height: 0.85; text-shadow: 0 15px 40px rgba(0,0,0,0.4); }
+        .showcase-title-cond { font-size: 3.5vw; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.8vw; text-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+        .showcase-desc-box { font-size: 1.8vw; font-weight: 500; line-height: 1.4; background: rgba(0,0,0,0.25); backdrop-filter: blur(15px); padding: 1.2vw 2vw; border-radius: 1vw; max-width: 85%; }
+        .showcase-footer { font-size: 1.1vw; font-weight: 700; letter-spacing: 0.2em; opacity: 0.9; text-transform: uppercase; z-index: 2; }
+    </style>
+</head>
+<body>
+
+    <!-- LATAR BELAKANG STATIS ESTETIK (OPASITAS SAMAR, SATU UNTUK SETIAP JAM) -->
+    <div class="hour-aura on" style="background:transparent"></div><div class="hour-aura"></div>
+    <div id="static-bg-layer"></div>
+
+    <div id="start-screen" onclick="startSmartClock()">
+        <h2>⚡ KETUK LAYAR ⚡</h2>
+        <p>Aktifkan Smart Clock & Sistem Audio Melodi Nostalgia</p>
+        <div class="pulse">START</div>
+    </div>
+
+    <!-- PANEL PENGUJIAN & KONTROL MASTER LENGKAP -->
+    <div id="dev-toggle" onclick="toggleTestPanel()" title="Buka Panel Kontrol Lengkap">⚙️</div>
+    <div id="test-panel">
+        <div class="panel-header">
+            <div class="panel-title">🎛️ PANEL KONTROL MASTER</div>
+            <button class="panel-close-btn" onclick="toggleTestPanel()">✕</button>
+        </div>
+
+        <div class="panel-content">
+            <!-- 1. PRESENTASI LIVE TILES LENGKAP -->
+            <div class="section-label">1. PRESENTASI LIVE TILES (BILINGUAL)</div>
+            <div class="section-box">
+                <button class="btn-ctrl btn-green-hero" onclick="runFullPresentationFlow()">
+                    <span>👁️ Mulai Alur Penuh (Tiles $\rightarrow$ Cuaca $\rightarrow$ Udara $\rightarrow$ Tutup)</span>
+                </button>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="testShowcaseOnly('weather')">🌤️ Showcase Cuaca</button>
+                    <button class="btn-ctrl" onclick="testShowcaseOnly('aqi')">🍃 Showcase Udara</button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="openMetroGridOnly()">🪟 Buka Grid Saja</button>
+                    <button class="btn-ctrl" onclick="closeMetroLiveTiles()">✕ Tutup Dashboard</button>
+                </div>
+            </div>
+
+            <!-- 2. ROBOT VACUUM: TIMER 5 MENIT, BERSIH, KEMBALI KE DOCK -->
+            <div class="section-label">2. ROBOT VACUUM (TIMER 5 MNT → BERSIH → DOCK)</div>
+            <div class="section-box">
+                <button class="btn-ctrl btn-orange-hero" onclick="startVacuumPreTest(6, 60)">
+                    <span>🧹 Tes Alur Lengkap Cepat (Timer → Bersih → Dock)</span>
+                </button>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="startVacuumPreTest(1, 1)">⏱️ Alur Lengkap Nyata (5 Mnt + 2 Jam)</button>
+                    <button class="btn-ctrl" onclick="startVacuumSplitTest(true)">🧽 Langsung Bersih (60x)</button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="startVacuumSplitTest(false)">⏱️ Bersih Mode Nyata (2 Jam)</button>
+                    <button class="btn-ctrl" onclick="testDockOnly()">🏠 Tes Kembali ke Dock</button>
+                </div>
+                <button class="btn-ctrl" onclick="stopVacuumSplit()">⏹ Hentikan Sesi (Pulang ke Dock)</button>
+            </div>
+
+            <!-- 3. NOTIFIKASI PERINGATAN FULL-SCREEN -->
+            <div class="section-label">3. NOTIFIKASI PERINGATAN FULL-SCREEN</div>
+            <div class="section-box">
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="startTest('sholat')">🕌 Waktu Sholat (Lengkap)</button>
+                    <button class="btn-ctrl" onclick="startTest('school')">🎒 Persiapan Sekolah</button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="startVacuumPreTest(6, 60)">🧹 Vacuum (60 Detik Terakhir)</button>
+                    <button class="btn-ctrl" onclick="startTest('dnd')">🌙 Jangan Ganggu</button>
+                </div>
+            </div>
+
+            <!-- 4. MELODI NOSTALGIA KLASIK SETIAP JAM (JAM 1 - 12) -->
+            <div class="section-label">4. MELODI KLASIK PIANO (TIAP JAM BERBEDA + GONG)</div>
+            <div class="section-box">
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="playHourMelody(1)"><span>Jam 1: Canon in D</span></button>
+                    <button class="btn-ctrl" onclick="playHourMelody(2)"><span>Jam 2: Für Elise</span></button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="playHourMelody(3)"><span>Jam 3: Greensleeves</span></button>
+                    <button class="btn-ctrl" onclick="playHourMelody(4)"><span>Jam 4: Ode to Joy</span></button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="playHourMelody(5)"><span>Jam 5: Vivaldi Spring</span></button>
+                    <button class="btn-ctrl" onclick="playHourMelody(6)"><span>Jam 6: Morning Mood</span></button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="playHourMelody(7)"><span>Jam 7: Minuet in G</span></button>
+                    <button class="btn-ctrl" onclick="playHourMelody(8)"><span>Jam 8: Brahms Lullaby</span></button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="playHourMelody(9)"><span>Jam 9: Turkish March</span></button>
+                    <button class="btn-ctrl" onclick="playHourMelody(10)"><span>Jam 10: Swan Lake</span></button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="playHourMelody(11)"><span>Jam 11: Jupiter Theme</span></button>
+                    <button class="btn-ctrl" onclick="playHourMelody(12)"><span>Jam 12: Westminster</span></button>
+                </div>
+            </div>
+
+            <!-- 5. EFEK SUARA & INSTRUMEN KHUSUS -->
+            <div class="section-label">5. EFEK SUARA & INSTRUMEN KHUSUS</div>
+            <div class="section-box">
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="testModernChimeDirect()">🔔 Notifikasi Piano Lembut</button>
+                    <button class="btn-ctrl" onclick="testGongDirect()">🥁 Gong Tradisional (Sholat)</button>
+                </div>
+                <div class="btn-grid-2">
+                    <button class="btn-ctrl" onclick="toggleAudioLite(this)">🎚️ Mode Audio: Otomatis</button>
+                    <button class="btn-ctrl" onclick="testVacuumBellDirect()">🧹 Nada Vacuum H-5</button>
+                    <button class="btn-ctrl" onclick="AudioEngine.init();AudioEngine.play(1, () => AudioEngine.playVacuumStartChime())">▶️ Nada Vacuum Mulai</button>
+                    <button class="btn-ctrl" onclick="AudioEngine.init();AudioEngine.play(1, () => AudioEngine.playVacuumDoneChime())">🏠 Nada Vacuum Selesai</button>
+                    <button class="btn-ctrl" onclick="AudioEngine.init();AudioEngine.play(1, () => AudioEngine.playQuarter(15))">🕒 Chime :15</button>
+                    <button class="btn-ctrl" onclick="AudioEngine.init();AudioEngine.play(1, () => AudioEngine.playQuarter(30))">🕧 Chime :30</button>
+                    <button class="btn-ctrl" onclick="AudioEngine.init();AudioEngine.play(1, () => AudioEngine.playQuarter(45))">🕒 Chime :45</button>
+                    <button class="btn-ctrl" onclick="testBilingualNarration()">🗣️ Tes Suara Dwibahasa</button>
+                </div>
+            </div>
+
+            <!-- 6. KONTROL TEMA & BACKGROUND STATIS -->
+            <div class="section-label">6. TEMA & BACKGROUND STATIS ESTETIK</div>
+            <div class="section-box">
+                <div class="btn-grid-3">
+                    <button class="btn-ctrl" style="text-align:center; justify-content:center;" onclick="setThemeDirect('day')">☀️ Siang</button>
+                    <button class="btn-ctrl" style="text-align:center; justify-content:center;" onclick="setThemeDirect('night')">🌙 Malam</button>
+                    <button class="btn-ctrl" style="text-align:center; justify-content:center;" onclick="setThemeDirect('auto')">🔄 Auto</button>
+                </div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 4px;">Pilih Motif & Warna Background (Jam 0-23):</div>
+                <select id="bg-selector" onchange="selectManualBg(this.value)" style="padding: 8px; border-radius: 6px; border: 1px solid #cbd5e1; font-family: 'Montserrat', sans-serif; font-size: 11px; background: white;">
+                    <option value="0">Pola 00:00 (Minimal Star Constellation)</option>
+                    <option value="1">Pola 01:00 (Isometric Cubes)</option>
+                    <option value="2">Pola 02:00 (Concentric Circular Waves)</option>
+                    <option value="3">Pola 03:00 (Hexagonal Lattice)</option>
+                    <option value="4">Pola 04:00 (Dawn Diagonal Weave)</option>
+                    <option value="5">Pola 05:00 (Architectural Grid)</option>
+                    <option value="6">Pola 06:00 (Sunrise Geometrics)</option>
+                    <option value="7">Pola 07:00 (Moroccan Quatrefoil)</option>
+                    <option value="8">Pola 08:00 (Bauhaus Blueprint)</option>
+                    <option value="9">Pola 09:00 (Scandinavian Trellis)</option>
+                    <option value="10">Pola 10:00 (Modern Chevron)</option>
+                    <option value="11">Pola 11:00 (Topographic Contours)</option>
+                    <option value="12">Pola 12:00 (Zen Concentric Rings)</option>
+                    <option value="13">Pola 13:00 (Dot Matrix Wave)</option>
+                    <option value="14">Pola 14:00 (Art Deco Fan)</option>
+                    <option value="15">Pola 15:00 (Interlocking Rings)</option>
+                    <option value="16">Pola 16:00 (Diagonal Crosshatch)</option>
+                    <option value="17">Pola 17:00 (Sunset Stripes)</option>
+                    <option value="18">Pola 18:00 (Dusk Overlapping)</option>
+                    <option value="19">Pola 19:00 (Evening Circuit)</option>
+                    <option value="20">Pola 20:00 (Starburst Geometrics)</option>
+                    <option value="21">Pola 21:00 (Night Rhombus)</option>
+                    <option value="22">Pola 22:00 (Deep Night Crosses)</option>
+                    <option value="23">Pola 23:00 (Nebula Matrix)</option>
+                </select>
+            </div>
+
+            <!-- 7. RESET EMERGENCY -->
+            <button class="btn-ctrl btn-red-hero" style="margin-top: 8px; padding: 12px;" onclick="stopTest()">
+                <span>⏹ RESET & KEMBALIKAN KE JAM UTAMA</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- UI Utama (Jam & Tanggal) -->
+    <div id="main-view">
+        <div id="clock-container">
+            <div class="flip-container" id="hours" data-val=""></div>
+            <div class="colon">:</div>
+            <div class="flip-container" id="minutes" data-val=""></div>
+            <div class="colon" style="font-size: 14vw; margin-top: 5vw; padding-bottom: 0;">:</div>
+            <div class="flip-container small" id="seconds" data-val=""></div>
+        </div>
+        <div id="date-text">MEMUAT TANGGAL...</div>
+    </div>
+
+    <!-- PANEL SPLIT-SCREEN MULTITASKING (SISI KANAN 50%) -->
+    <div id="vacuum-timer-panel">
+        <div class="vtp-badge">🧹 MULTITASKING SNAP ASSIST</div>
+        <div class="vtp-title">Robot Vacuum Sedang Bekerja</div>
+        <div class="vtp-sub">SIKLUS PEMBERSIHAN OTOMATIS RUMAH</div>
+        
+        <div class="vtp-timer-box">
+            <div id="vtp-countdown" class="vtp-countdown-display">02:00:00</div>
+        </div>
+
+        <div class="vtp-progress-section">
+            <div class="vtp-progress-header">
+                <span>PROGRESS PEMBERSIHAN</span>
+                <span id="vtp-progress-pct" class="vtp-progress-pct">0%</span>
+            </div>
+            <div class="vtp-progress-track">
+                <div id="vtp-progress-fill" class="vtp-progress-fill"></div>
+            </div>
+        </div>
+
+        <div class="vtp-stats-row">
+            <div class="vtp-stat-card">
+                <div class="vtp-stat-label">AREA BERSIH</div>
+                <div id="vtp-clean-area" class="vtp-stat-value">0 m²</div>
+            </div>
+            <div class="vtp-stat-card">
+                <div class="vtp-stat-label">STATUS MOTOR</div>
+                <div class="vtp-stat-value" style="color: #f59e0b;">AKTIF</div>
+            </div>
+            <div class="vtp-stat-card">
+                <div class="vtp-stat-label">BATERAI</div>
+                <div id="vtp-battery" class="vtp-stat-value">100%</div>
+            </div>
+        </div>
+
+        <div class="vtp-controls">
+            <button id="vtp-speed-btn" class="vtp-btn vtp-btn-speed" onclick="toggleVacuumSpeed()">⏩ Simulasi Cepat (60x)</button>
+            <button class="vtp-btn vtp-btn-stop" onclick="stopVacuumSplit()">⏹ Hentikan Sesi</button>
+        </div>
+    </div>
+
+    <!-- BANNER TIMER 5 MENIT SEBELUM VACUUM -->
+    <div id="vacuum-pre-banner">
+        <div class="vpb-ico">🧹</div>
+        <div class="vpb-text"><div class="vpb-title">ROBOT VACUUM MULAI DALAM</div><div id="vpb-time" class="vpb-time">05:00</div></div>
+        <div class="vpb-bar"><i id="vpb-fill"></i></div>
+    </div>
+
+    <!-- DOCK ROBOT VACUUM -->
+    <div class="vac-dock"><div class="vac-dock-led"></div><div class="vac-dock-label" id="vac-dock-label">⚡ CHARGING</div></div>
+
+    <!-- ROBOT VACUUM MERAYAP LAYAR BAWAH -->
+    <div class="vacuum-bot-container" id="vacuum-bot">
+        <div class="vacuum-body">
+            <div class="vacuum-brush"></div>
+            <div class="vacuum-brush"></div>
+            <div class="vacuum-sensor">
+                <div class="vacuum-light"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFIKASI PERINGATAN FULL-SCREEN TAKEOVER -->
+    <div id="overlay-container">
+        <div class="notif-ambient-glow"></div>
+        
+        <!-- ANIMASI SHOLAT LENGKAP: MASJID SILUET, BULAN SABIT & BINTANG -->
+        <div class="sholat-anim-container">
+            <div class="stars-field">
+                <div class="star-dot d1"></div>
+                <div class="star-dot d2"></div>
+                <div class="star-dot d3"></div>
+            </div>
+            <div class="sholat-sky-decor">
+                <div class="moon-crescent-art"></div>
+            </div>
+            <div class="mosque-silhouette">
+                <svg viewBox="0 0 1200 400" width="100%" height="100%" preserveAspectRatio="none">
+                    <!-- Menara Kiri -->
+                    <rect x="80" y="80" width="40" height="320" fill="#10b981" />
+                    <polygon points="100,20 70,80 130,80" fill="#34d399" />
+                    <circle cx="100" cy="15" r="5" fill="#facc15" />
+                    <rect x="70" y="140" width="60" height="15" rx="3" fill="#059669" />
+                    <rect x="70" y="220" width="60" height="15" rx="3" fill="#059669" />
+
+                    <!-- Menara Kanan -->
+                    <rect x="1080" y="80" width="40" height="320" fill="#10b981" />
+                    <polygon points="1100,20 1070,80 1130,80" fill="#34d399" />
+                    <circle cx="1100" cy="15" r="5" fill="#facc15" />
+                    <rect x="1070" y="140" width="60" height="15" rx="3" fill="#059669" />
+                    <rect x="1070" y="220" width="60" height="15" rx="3" fill="#059669" />
+
+                    <!-- Kubah Pendamping Kiri -->
+                    <path d="M 240,400 L 240,240 C 240,160 380,160 380,240 L 380,400 Z" fill="#059669" />
+                    <polygon points="310,120 300,160 320,160" fill="#facc15" />
+                    
+                    <!-- Kubah Pendamping Kanan -->
+                    <path d="M 820,400 L 820,240 C 820,160 960,160 960,240 L 960,400 Z" fill="#059669" />
+                    <polygon points="890,120 880,160 900,160" fill="#facc15" />
+
+                    <!-- Kubah Agung Pusat -->
+                    <path d="M 420,400 L 420,220 C 420,80 780,80 780,220 L 780,400 Z" fill="#10b981" />
+                    <path d="M 450,220 C 450,110 750,110 750,220 Z" fill="#34d399" opacity="0.4" />
+                    <polygon points="600,40 585,90 615,90" fill="#facc15" />
+                    <circle cx="600" cy="30" r="12" fill="#facc15" />
+
+                    <!-- Pintu Gerbang Lengkung Arabesque -->
+                    <path d="M 520,400 L 520,280 C 520,210 680,210 680,280 L 680,400 Z" fill="#064e3b" />
+                    <path d="M 280,400 L 280,310 C 280,260 340,260 340,310 L 340,400 Z" fill="#064e3b" />
+                    <path d="M 860,400 L 860,310 C 860,260 920,260 920,310 L 920,400 Z" fill="#064e3b" />
+                </svg>
+            </div>
+        </div>
+
+        <div class="school-anim-container"><div class="bus-wrapper"><div class="bus-body"><div class="bus-windows"><div class="bus-window"></div><div class="bus-window"></div><div class="bus-window"></div></div><div class="bus-wheel w1"></div><div class="bus-wheel w2"></div></div></div></div>
+        <div class="dnd-anim-container">Zzz...</div>
+
+        <div id="alert-label-badge"><div class="notif-pulse-dot"></div> <span id="alert-label-text">PEMBERITAHUAN SISTEM UTAMA</span></div>
+        <div id="alert-title">JUDUL PERINGATAN</div>
+
+        <div class="hud-countdown-container" id="countdown-wrapper">
+            <svg class="hud-countdown-svg" viewBox="0 0 100 100">
+                <circle class="hud-circle-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="hud-circle-progress" id="countdown-ring" cx="50" cy="50" r="40"></circle>
+            </svg>
+            <div class="hud-number-display" id="alert-countdown">60</div>
+            <div class="hud-unit-label" id="alert-countdown-unit">DETIK LAGI</div>
+        </div>
+    </div>
+
+    <!-- FULL-SCREEN WINDOWS 8 LIVE TILES -->
+    <div id="metro-fullscreen-tiles">
+        <div class="metro-top-bar">
+            <div class="metro-title-group">
+                <div class="metro-live-dot"></div>
+                <div>
+                    <div class="metro-main-title">PUSAT INFORMASI RUMAH & LINGKUNGAN</div>
+                    <div class="metro-subtitle">KEDAMEAN, GRESIK • REAL-TIME SATELLITE & SENSORS</div>
+                </div>
+            </div>
+            <button class="metro-btn-close" onclick="closeMetroLiveTiles()">TUTUP DASHBOARD ✕</button>
+        </div>
+
+        <div id="metro-tiles-grid">
+            <div class="metro-tile tile-wide tile-blue" id="tile-weather">
+                <div>
+                    <div class="tile-badge"><span>🌤️</span> CUACA SAAT INI</div>
+                    <div class="tile-center-content">
+                        <div class="tile-hero-metric" id="metro-temp">--°C</div>
+                        <div>
+                            <div class="tile-hero-text" id="metro-cond">MEMUAT...</div>
+                            <div style="font-size: 1vw; opacity: 0.85;">KEDAMEAN, JAWA TIMUR</div>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <div class="tile-desc" id="metro-advice">Menghubungkan ke satelit cuaca...</div>
+                    <div class="tile-subgrid">
+                        <div class="tile-substat" id="metro-wind">ANGIN: 12 KM/J</div>
+                        <div class="tile-substat" id="metro-humidity">KELEMBAPAN: 68%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metro-tile tile-emerald" id="tile-aqi">
+                <div>
+                    <div class="tile-badge"><span>🍃</span> AIR QUALITY INDEX</div>
+                    <div class="tile-center-content" style="margin: 0.8vw 0;">
+                        <div class="tile-hero-metric" id="metro-aqi-num">--</div>
+                        <div class="tile-hero-text" id="metro-aqi-status">MEMUAT</div>
+                    </div>
+                </div>
+                <div class="tile-desc" id="metro-aqi-desc">Menghubungkan ke sensor udara...</div>
+            </div>
+
+            <div class="metro-tile tile-violet">
+                <div>
+                    <div class="tile-badge"><span>🕌</span> WAKTU IBADAH</div>
+                    <div class="tile-center-content" style="margin: 0.8vw 0;">
+                        <div class="tile-hero-metric" id="metro-next-sholat-time" style="font-size: 5vw;">--:--</div>
+                        <div class="tile-hero-text" id="metro-next-sholat-name">SHOLAT</div>
+                    </div>
+                </div>
+                <div class="tile-desc" id="metro-sholat-countdown">Menghitung jadwal ibadah...</div>
+            </div>
+
+            <div class="metro-tile tile-amber tile-wide">
+                <div>
+                    <div class="tile-badge"><span>⚡</span> EFISIENSI DAYA & PLTS</div>
+                    <div class="tile-center-content">
+                        <div class="tile-hero-metric" id="metro-power-watt">-- W</div>
+                        <div>
+                            <div class="tile-hero-text" id="metro-power-status">SISTEM AKTIF</div>
+                            <div style="font-size: 1vw; opacity: 0.85;">PRODUKSI LISTRIK OPTIMAL</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tile-desc">Beban listrik dalam batas aman. Sirkulasi hemat energi.</div>
+            </div>
+
+            <div class="metro-tile tile-teal">
+                <div>
+                    <div class="tile-badge"><span>🌬️</span> SIRKULASI MVAIR</div>
+                    <div class="tile-hero-text" style="font-size: 2.2vw; margin: 0.8vw 0;">FILTER OPTIMAL</div>
+                </div>
+                <div class="tile-desc">Filter aktif, sirkulasi ruangan dalam kondisi segar.</div>
+            </div>
+
+            <div class="metro-tile tile-dark">
+                <div>
+                    <div class="tile-badge"><span>🧹</span> ROBOT VACUUM</div>
+                    <div class="tile-hero-text" style="font-size: 2vw; margin: 0.8vw 0; color: #f59e0b;">STANDBY DOCK</div>
+                </div>
+                <div class="tile-desc">Jadwal: 08:15, 12:15, 15:15 WIB.</div>
+            </div>
+        </div>
+
+        <div id="metro-showcase-container">
+            <div class="showcase-card showcase-weather-sunny" id="showcase-weather-card" style="display: none;">
+                <div id="showcase-weather-fx"></div>
+                <div class="showcase-header"><span>🌤️</span> LAPORAN CUACA SATELIT</div>
+                <div class="showcase-body">
+                    <div class="showcase-huge-metric" id="sc-w-temp">--°C</div>
+                    <div class="showcase-title-cond" id="sc-w-cond">MEMUAT CUACA...</div>
+                    <div class="showcase-desc-box" id="sc-w-advice">Memuat rekomendasi aktivitas cuaca...</div>
+                </div>
+                <div class="showcase-footer" id="sc-w-sub">LOKASI: KEDAMEAN, GRESIK • KELEMBAPAN: 65% • ANGIN: 14 KM/J</div>
+            </div>
+
+            <div class="showcase-card showcase-aqi-good" id="showcase-aqi-card" style="display: none;">
+                <div class="aqi-fx-particles"></div>
+                <div class="aqi-fx-wrap" id="showcase-aqi-fx"></div>
+                <div class="showcase-header"><span>🍃</span> INDEKS KUALITAS UDARA (AQI)</div>
+                <div class="showcase-body">
+                    <div class="showcase-huge-metric" id="sc-aqi-num">--</div>
+                    <div class="showcase-title-cond" id="sc-aqi-status">MEMUAT AQI...</div>
+                    <div class="showcase-desc-box" id="sc-aqi-advice">Menghubungkan ke sensor kualitas udara...</div>
+                </div>
+                <div class="showcase-footer">PARTIKULAT PM2.5 • STATUS KESEHATAN PERNAPASAN KELUARGA</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const jadwalSholat = { "04:12": "Subuh", "05:31": "Terbit", "11:27": "Zuhur", "14:49": "Asar", "17:23": "Magrib", "18:34": "Isya" };
+        const vacuumSchedules = ["08:15", "12:15", "15:15"];
+        const warnVacuumSchedules = vacuumSchedules.map(v => {
+            let [h, m] = v.split(':').map(Number); m -= 5; if(m < 0) { m += 60; h -= 1; }
+            return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+        });
+
+        // 24 LATAR BELAKANG STATIS ESTETIK (OPASITAS SAMAR, SATU UNTUK SETIAP JAM)
+        const hourlyBgPatterns = [
+            /* 00:00 */ `data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='1.5' fill='%2364748b'/%3E%3Cpath d='M0 30h60M30 0v60' stroke='%2364748b' stroke-width='0.5' stroke-dasharray='3 3'/%3E%3C/svg%3E`,
+            /* 01:00 */ `data:image/svg+xml,%3Csvg width='80' height='80' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M40 0 L80 20 L80 60 L40 80 L0 60 L0 20 Z M40 40 L40 80 M40 40 L80 20 M40 40 L0 20' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3C/svg%3E`,
+            /* 02:00 */ `data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='50' cy='50' r='15' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3Ccircle cx='50' cy='50' r='35' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3Ccircle cx='50' cy='50' r='48' fill='none' stroke='%2364748b' stroke-width='0.5' stroke-dasharray='4 4'/%3E%3C/svg%3E`,
+            /* 03:00 */ `data:image/svg+xml,%3Csvg width='60' height='104' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0 L60 17.3 L60 52 L30 69.3 L0 52 L0 17.3 Z M30 104 L60 86.7 L60 52 L30 69.3 L0 52 L0 86.7 Z' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3C/svg%3E`,
+            /* 04:00 */ `data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40 L40 0 M-10 10 L10 -10 M30 50 L50 30' stroke='%2364748b' stroke-width='0.8'/%3E%3C/svg%3E`,
+            /* 05:00 */ `data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='0' y='0' width='50' height='50' fill='none' stroke='%2364748b' stroke-width='0.5'/%3E%3Ccircle cx='0' cy='0' r='2' fill='%2364748b'/%3E%3Ccircle cx='50' cy='0' r='2' fill='%2364748b'/%3E%3Ccircle cx='0' cy='50' r='2' fill='%2364748b'/%3E%3Ccircle cx='50' cy='50' r='2' fill='%2364748b'/%3E%3Ccircle cx='25' cy='25' r='1' fill='%2364748b'/%3E%3C/svg%3E`,
+            /* 06:00 */ `data:image/svg+xml,%3Csvg width='80' height='80' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='40' cy='40' r='30' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3Cpath d='M40 0v80 M0 40h80 M12 12l56 56 M12 68l56-56' stroke='%2364748b' stroke-width='0.5' stroke-dasharray='2 4'/%3E%3C/svg%3E`,
+            /* 07:00 */ `data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0 A15 15 0 0 1 45 15 A15 15 0 0 1 60 30 A15 15 0 0 1 45 45 A15 15 0 0 1 30 60 A15 15 0 0 1 15 45 A15 15 0 0 1 0 30 A15 15 0 0 1 15 15 A15 15 0 0 1 30 0 Z' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3C/svg%3E`,
+            /* 08:00 */ `data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='100' height='100' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3Ccircle cx='50' cy='50' r='35' fill='none' stroke='%2364748b' stroke-width='0.6' stroke-dasharray='5 5'/%3E%3Cpath d='M0 50h100M50 0v100' stroke='%2364748b' stroke-width='0.5'/%3E%3C/svg%3E`,
+            /* 09:00 */ `data:image/svg+xml,%3Csvg width='50' height='80' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M25 0 L50 40 L25 80 L0 40 Z' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3C/svg%3E`,
+            /* 10:00 */ `data:image/svg+xml,%3Csvg width='60' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 20 L30 0 L60 20 L60 40 L30 20 L0 40 Z' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3C/svg%3E`,
+            /* 11:00 */ `data:image/svg+xml,%3Csvg width='90' height='90' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 45 Q22 20 45 45 T90 45 M0 20 Q45 5 90 20 M0 70 Q45 85 90 70' fill='none' stroke='%2364748b' stroke-width='0.6' stroke-dasharray='3 3'/%3E%3C/svg%3E`,
+            /* 12:00 */ `data:image/svg+xml,%3Csvg width='120' height='120' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='60' cy='60' r='50' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3Ccircle cx='60' cy='60' r='30' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3Ccircle cx='60' cy='60' r='10' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3C/svg%3E`,
+            /* 13:00 */ `data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='10' cy='10' r='1.5' fill='%2364748b'/%3E%3Ccircle cx='30' cy='10' r='1.5' fill='%2364748b'/%3E%3Ccircle cx='20' cy='20' r='2' fill='%2364748b'/%3E%3Ccircle cx='10' cy='30' r='1.5' fill='%2364748b'/%3E%3Ccircle cx='30' cy='30' r='1.5' fill='%2364748b'/%3E%3C/svg%3E`,
+            /* 14:00 */ `data:image/svg+xml,%3Csvg width='80' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 50 A40 40 0 0 1 80 50 M15 50 A25 25 0 0 1 65 50 M30 50 A10 10 0 0 1 50 50' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3C/svg%3E`,
+            /* 15:00 */ `data:image/svg+xml,%3Csvg width='70' height='70' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='35' cy='35' r='25' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3Ccircle cx='0' cy='35' r='25' fill='none' stroke='%2364748b' stroke-width='0.5' stroke-dasharray='2 2'/%3E%3Ccircle cx='70' cy='35' r='25' fill='none' stroke='%2364748b' stroke-width='0.5' stroke-dasharray='2 2'/%3E%3C/svg%3E`,
+            /* 16:00 */ `data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0 L60 60 M60 0 L0 60' stroke='%2364748b' stroke-width='0.6'/%3E%3Ccircle cx='30' cy='30' r='15' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3C/svg%3E`,
+            /* 17:00 */ `data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='20' fill='none' stroke='%2364748b' stroke-width='0.8'/%3E%3Cline x1='0' y1='30' x2='60' y2='30' stroke='%2364748b' stroke-width='0.8'/%3E%3C/svg%3E`,
+            /* 18:00 */ `data:image/svg+xml,%3Csvg width='80' height='70' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='40,5 75,65 5,65' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3Cpolygon points='40,65 75,5 5,5' fill='none' stroke='%2364748b' stroke-width='0.5' stroke-dasharray='3 3'/%3E%3C/svg%3E`,
+            /* 19:00 */ `data:image/svg+xml,%3Csvg width='80' height='80' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M10 10 L70 10 L70 70 L10 70 Z' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3Ccircle cx='10' cy='10' r='2' fill='%2364748b'/%3E%3Ccircle cx='70' cy='70' r='2' fill='%2364748b'/%3E%3Cpath d='M40 10v60M10 40h60' stroke='%2364748b' stroke-width='0.5' stroke-dasharray='4 4'/%3E%3C/svg%3E`,
+            /* 20:00 */ `data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='50,10 62,38 92,50 62,62 50,90 38,62 8,50 38,38' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3C/svg%3E`,
+            /* 21:00 */ `data:image/svg+xml,%3Csvg width='50' height='50' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='10' y='10' width='30' height='30' transform='rotate(45 25 25)' fill='none' stroke='%2364748b' stroke-width='0.7'/%3E%3C/svg%3E`,
+            /* 22:00 */ `data:image/svg+xml,%3Csvg width='70' height='70' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M35 25v20M25 35h20M0 0h70v70H0Z' stroke='%2364748b' stroke-width='0.5' fill='none'/%3E%3C/svg%3E`,
+            /* 23:00 */ `data:image/svg+xml,%3Csvg width='80' height='80' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='20' cy='25' r='1.5' fill='%2364748b'/%3E%3Ccircle cx='60' cy='35' r='2' fill='%2364748b'/%3E%3Ccircle cx='40' cy='65' r='1.5' fill='%2364748b'/%3E%3Cpath d='M20 25 L60 35 L40 65' stroke='%2364748b' stroke-width='0.5' stroke-dasharray='2 3' fill='none'/%3E%3C/svg%3E`
+        ];
+
+        let lastHourBgApplied = -1;
+        function updateStaticHourlyBg(hour) {
+            if (hour === lastHourBgApplied) return;
+            lastHourBgApplied = hour;
+            const bgLayer = document.getElementById('static-bg-layer');
+            bgLayer.style.backgroundImage = `url("${hourlyBgPatterns[hour % 24]}")`;
+            applyHourAura(hour);
+            const sel = document.getElementById('bg-selector');
+            if (sel) sel.value = String(hour % 24);
+        }
+
+        /* AURA WARNA: setiap jam punya palet sendiri (fajar peach, pagi biru, siang emas, senja jingga-ungu, malam indigo) */
+        const AURA_HUES = [250, 262, 275, 285, 320, 345, 18, 35, 200, 185, 170, 150, 48, 28, 12, 355, 335, 315, 295, 275, 258, 240, 225, 235];
+        let auraFlip = 0;
+        function applyHourAura(hour) {
+            const H = AURA_HUES[hour % 24];
+            const bg = `radial-gradient(60% 55% at 12% 18%, hsl(${H} 85% 72%) 0%, transparent 70%), radial-gradient(55% 60% at 88% 28%, hsl(${(H + 42) % 360} 80% 70%) 0%, transparent 70%), radial-gradient(70% 55% at 50% 100%, hsl(${(H + 330) % 360} 75% 74%) 0%, transparent 72%)`;
+            const L = document.querySelectorAll('.hour-aura'); if (L.length < 2) return;
+            const nxt = L[auraFlip ^ 1], cur = L[auraFlip];
+            nxt.style.background = bg; nxt.classList.add('on'); cur.classList.remove('on'); auraFlip ^= 1;
+        }
+
+        function selectManualBg(val) {
+            const bgLayer = document.getElementById('static-bg-layer');
+            bgLayer.style.backgroundImage = `url("${hourlyBgPatterns[Number(val)]}")`;
+            applyHourAura(Number(val));
+        }
+
+        let wizStatus = { status: true, watt: 420 };
+        let currentTemp = 31; let currentCond = "CERAH BERAWAN"; let currentCondEN = "Partly Cloudy"; 
+        let currentAdvice = "Cuaca cerah berawan. Sangat baik untuk sirkulasi udara rumah.";
+        let currentAdviceEN = "The weather is partly cloudy. Excellent condition for natural home air circulation.";
+        let currentWeatherType = "sunny";
+        let currentAQI = 38; let currentAQIClass = "good"; let currentAQITextID = "Sangat Baik"; let currentAQITextEN = "Good"; 
+        let currentAQIAdvice = "Kualitas udara sangat segar. Buka jendela sekarang untuk ventilasi alami.";
+        let currentAQIAdviceEN = "The air quality is very fresh and clean. Feel free to open windows for ventilation.";
+        let currentWind = "12 KM/J"; let currentHumidity = "68%";
+
+        function renderDateText(nowDate) {
+            const days = ["MINGGU", "SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"];
+            const months = ["JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI", "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"];
+            document.getElementById('date-text').innerText = `${days[nowDate.getDay()]}, ${nowDate.getDate()} ${months[nowDate.getMonth()]} ${nowDate.getFullYear()}`;
+        }
+
+        async function fetchWizStatus() {
+            try {
+                const res = await fetch('http://localhost:5000/wiz/status');
+                const data = await res.json();
+                wizStatus.status = data.status; wizStatus.watt = data.power_watt;
+                updateMetroDashboardData();
+            } catch (error) { /* Silent fallback */ }
+        }
+
+        const OWM_KEYS = ["33d987ce7bc684062ae339cd177b4395"];   // tambah key cadangan OpenWeather di sini bila ada
+        const GEO = { lat: "-7.34", lon: "112.55" };
+        let weatherRetryTimer = null;
+
+        async function fetchJSON(url, ms = 10000) {
+            const ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null, tm = setTimeout(() => { if (ctl) ctl.abort(); }, ms);
+            try { const r = await fetch(url, ctl ? { signal: ctl.signal } : {}); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
+            finally { clearTimeout(tm); }
+        }
+        async function getWeatherData() {
+            for (const key of OWM_KEYS) {
+                try {
+                    const d = await fetchJSON(`https://api.openweathermap.org/data/2.5/weather?lat=${GEO.lat}&lon=${GEO.lon}&units=metric&appid=${key}&lang=id`);
+                    if (d && d.main && d.weather) return { src: 'OpenWeather', temp: Math.round(d.main.temp), main: d.weather[0].main.toLowerCase(), descID: d.weather[0].description.toUpperCase(), descEN: d.weather[0].main, hum: d.main.humidity, wind: Math.round(d.wind.speed * 3.6) };
+                } catch (e) { console.warn('OpenWeather cuaca gagal:', e.message); }
+            }
+            try {   // cadangan tanpa key
+                const d = await fetchJSON(`https://api.open-meteo.com/v1/forecast?latitude=${GEO.lat}&longitude=${GEO.lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto`);
+                const c = d.current, wc = c.weather_code; let main = 'clouds', id = 'BERAWAN', en = 'Cloudy';
+                if (wc <= 1) { main = 'clear'; id = 'CERAH'; en = 'Clear'; }
+                else if (wc === 2) { id = 'CERAH BERAWAN'; en = 'Partly Cloudy'; }
+                else if (wc <= 48) { id = wc >= 45 ? 'BERKABUT' : 'BERAWAN'; en = wc >= 45 ? 'Foggy' : 'Cloudy'; }
+                else if (wc <= 57) { main = 'rain'; id = 'GERIMIS'; en = 'Drizzle'; }
+                else if (wc <= 67 || (wc >= 80 && wc <= 82)) { main = 'rain'; id = 'HUJAN'; en = 'Rain'; }
+                else if (wc >= 95) { main = 'thunderstorm'; id = 'BADAI PETIR'; en = 'Thunderstorm'; }
+                return { src: 'Open-Meteo', temp: Math.round(c.temperature_2m), main, descID: id, descEN: en, hum: c.relative_humidity_2m, wind: Math.round(c.wind_speed_10m) };
+            } catch (e) { console.warn('Open-Meteo cuaca gagal:', e.message); }
+            return null;
+        }
+        async function getAqiData() {
+            for (const key of OWM_KEYS) {
+                try {
+                    const d = await fetchJSON(`https://api.openweathermap.org/data/2.5/air_pollution?lat=${GEO.lat}&lon=${GEO.lon}&appid=${key}`);
+                    const a = d.list[0].main.aqi; return { src: 'OpenWeather', value: a * 24, level: a <= 2 ? 'good' : a === 3 ? 'fair' : 'poor' };
+                } catch (e) { console.warn('OpenWeather udara gagal:', e.message); }
+            }
+            try {
+                const d = await fetchJSON(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${GEO.lat}&longitude=${GEO.lon}&current=us_aqi&timezone=auto`);
+                const v = Math.round(d.current.us_aqi); return { src: 'Open-Meteo', value: v, level: v <= 50 ? 'good' : v <= 100 ? 'fair' : 'poor' };
+            } catch (e) { console.warn('Open-Meteo udara gagal:', e.message); }
+            return null;
+        }
+
+        async function fetchWeatherAndAQI() {
+            clearTimeout(weatherRetryTimer);
+            const [w, a] = await Promise.all([getWeatherData(), getAqiData()]);
+            if (w) {
+                currentTemp = w.temp; currentCond = w.descID; currentCondEN = w.descEN; currentHumidity = w.hum + "%"; currentWind = w.wind + " KM/J";
+                const mc = w.main;
+                if (mc.includes('clear')) {
+                    currentWeatherType = 'sunny';
+                    currentAdvice = currentTemp > 33 ? "Cuaca terik! Pastikan ruangan sejuk dan minum air cukup." : "Cuaca cerah. Sangat baik untuk sirkulasi udara rumah.";
+                    currentAdviceEN = currentTemp > 33 ? "Hot sunny weather! Stay hydrated and keep indoor spaces cool." : "Clear sunny skies. Perfect for home air circulation.";
+                } else if (mc.includes('cloud')) {
+                    currentWeatherType = 'cloudy'; currentAdvice = "Cuaca berawan sejuk. Sirkulasi udara normal."; currentAdviceEN = "Mild cloudy weather. Normal indoor ventilation.";
+                } else if (mc.includes('rain') || mc.includes('drizzle')) {
+                    currentWeatherType = 'rainy'; currentAdvice = "Hujan turun! Pastikan pintu dan jendela telah tertutup rapat."; currentAdviceEN = "Rain is falling! Please make sure all doors and windows are closed tightly.";
+                } else if (mc.includes('thunderstorm')) {
+                    currentWeatherType = 'storm'; currentAdvice = "Peringatan badai petir! Matikan perangkat elektronik sensitif."; currentAdviceEN = "Thunderstorm alert! Please unplug sensitive electronics.";
+                } else {
+                    currentWeatherType = 'cloudy'; currentAdvice = "Kondisi cuaca normal. Seluruh sistem beroperasi dengan baik."; currentAdviceEN = "Normal weather conditions. All home systems operating properly.";
+                }
+                console.info('Cuaca dari', w.src);
+            }
+            if (a) {
+                currentAQI = a.value;
+                if (a.level === 'good') {
+                    currentAQIClass = "good"; currentAQITextID = "Sangat Baik"; currentAQITextEN = "Good";
+                    currentAQIAdvice = "Kualitas udara sangat segar. Buka jendela sekarang untuk udara bersih alami."; currentAQIAdviceEN = "Air quality is excellent. Open windows for fresh natural ventilation.";
+                } else if (a.level === 'fair') {
+                    currentAQIClass = "fair"; currentAQITextID = "Sedang"; currentAQITextEN = "Moderate";
+                    currentAQIAdvice = "Kualitas udara sedang. Tutup jendela bila anggota keluarga sensitif debu."; currentAQIAdviceEN = "Air quality is moderate. Keep windows closed if sensitive to dust.";
+                } else {
+                    currentAQIClass = "poor"; currentAQITextID = "Kurang Sehat"; currentAQITextEN = "Poor";
+                    currentAQIAdvice = "Udara luar ruangan kurang sehat! Segera aktifkan Air Purifier."; currentAQIAdviceEN = "Outdoor air is unhealthy! Please turn on the air purifier.";
+                }
+                console.info('Udara dari', a.src);
+            }
+            if (w || a) updateMetroDashboardData();
+            if (!w || !a) weatherRetryTimer = setTimeout(fetchWeatherAndAQI, 5 * 60 * 1000);   // coba lagi 5 menit
+        }
+
+                function updateMetroDashboardData() {
+            const elTemp = document.getElementById('metro-temp');
+            const elCond = document.getElementById('metro-cond');
+            const elAdvice = document.getElementById('metro-advice');
+            const elWind = document.getElementById('metro-wind');
+            const elHum = document.getElementById('metro-humidity');
+            
+            const elAqiNum = document.getElementById('metro-aqi-num');
+            const elAqiStatus = document.getElementById('metro-aqi-status');
+            const elAqiDesc = document.getElementById('metro-aqi-desc');
+
+            const elWatt = document.getElementById('metro-power-watt');
+            const elWattStatus = document.getElementById('metro-power-status');
+
+            if (elTemp) elTemp.innerText = currentTemp + "°C";
+            if (elCond) elCond.innerText = currentCond;
+            if (elAdvice) elAdvice.innerText = currentAdvice;
+            if (elWind) elWind.innerText = "ANGIN: " + currentWind;
+            if (elHum) elHum.innerText = "KELEMBAPAN: " + currentHumidity;
+
+            if (elAqiNum) elAqiNum.innerText = currentAQI;
+            if (elAqiStatus) elAqiStatus.innerText = currentAQITextID;
+            if (elAqiDesc) elAqiDesc.innerText = currentAQIAdvice;
+
+            if (elWatt) elWatt.innerText = (wizStatus.watt || 420) + " W";
+            if (elWattStatus) elWattStatus.innerText = wizStatus.status ? "BEBAN NORMAL" : "STANDBY DAYA";
+
+            const now = new Date();
+            const curMins = now.getHours() * 60 + now.getMinutes();
+            let nextName = "Subuh"; let nextTime = "04:12";
+            for (let [t, name] of Object.entries(jadwalSholat)) {
+                let [th, tm] = t.split(':').map(Number);
+                if (th * 60 + tm > curMins) {
+                    nextName = name; nextTime = t; break;
+                }
+            }
+            const elSholatTime = document.getElementById('metro-next-sholat-time');
+            const elSholatName = document.getElementById('metro-next-sholat-name');
+            const elSholatCountdown = document.getElementById('metro-sholat-countdown');
+            if (elSholatTime) elSholatTime.innerText = nextTime;
+            if (elSholatName) elSholatName.innerText = nextName.toUpperCase();
+            if (elSholatCountdown) elSholatCountdown.innerText = `Menuju waktu ${nextName} hari ini.`;
+
+            const scTemp = document.getElementById('sc-w-temp');
+            const scCond = document.getElementById('sc-w-cond');
+            const scAdvice = document.getElementById('sc-w-advice');
+            const scSub = document.getElementById('sc-w-sub');
+            const scCard = document.getElementById('showcase-weather-card');
+            const scFx = document.getElementById('showcase-weather-fx');
+
+            if (scTemp) scTemp.innerText = currentTemp + "°C";
+            if (scCond) scCond.innerText = currentCond;
+            if (scAdvice) scAdvice.innerText = currentAdvice;
+            if (scSub) scSub.innerText = `LOKASI: KEDAMEAN, GRESIK • KELEMBAPAN: ${currentHumidity} • ANGIN: ${currentWind}`;
+            
+            if (scCard && scFx) {
+                scCard.className = `showcase-card showcase-weather-${currentWeatherType}`;
+                if (currentWeatherType === 'sunny') {
+                    scFx.innerHTML = `<div class="weather-fx-sun"></div>`;
+                } else if (currentWeatherType === 'cloudy') {
+                    scFx.innerHTML = `<div class="weather-fx-cloud">☁️</div>`;
+                } else if (currentWeatherType === 'rainy' || currentWeatherType === 'storm') {
+                    scFx.innerHTML = `<div class="weather-fx-rain"></div>`;
+                }
+            }
+
+            const scAqiNum = document.getElementById('sc-aqi-num');
+            const scAqiStatus = document.getElementById('sc-aqi-status');
+            const scAqiAdvice = document.getElementById('sc-aqi-advice');
+            const scAqiCard = document.getElementById('showcase-aqi-card');
+
+            if (scAqiNum) scAqiNum.innerText = currentAQI;
+            if (scAqiStatus) scAqiStatus.innerText = "KUALITAS: " + currentAQITextID;
+            if (scAqiAdvice) scAqiAdvice.innerText = currentAQIAdvice;
+            if (scAqiCard) {
+                scAqiCard.className = `showcase-card showcase-aqi-${currentAQIClass}`;
+                renderAqiFx(currentAQIClass);
+            }
+        }
+
+        function renderAqiFx(cls) {
+            const el = document.getElementById('showcase-aqi-fx'); if (!el || el.dataset.cls === cls) return; el.dataset.cls = cls;
+            const R = (a, b) => (a + Math.random() * (b - a)).toFixed(1);
+            let h = '<div class="aqi-ring"></div><div class="aqi-ring" style="animation-delay:1.8s"></div>';
+            if (cls === 'good') {
+                for (let i = 0; i < 9; i++) h += `<div class="aqi-leaf" style="--x:${R(0, 95)}%;--s:${R(0, 1.5)};--d:${R(9, 16)}s;--dl:-${R(0, 12)}s">${i % 3 ? '🍃' : '🌿'}</div>`;
+                for (let i = 0; i < 6; i++) h += `<div class="aqi-wind" style="--y:${R(8, 92)}%;--d:${R(3, 6)}s;--dl:-${R(0, 5)}s"></div>`;
+            } else {
+                const c = cls === 'poor' ? 'rgba(15,10,10,0.38)' : 'rgba(255,255,255,0.3)';
+                for (let i = 0; i < 5; i++) h += `<div class="aqi-haze" style="--y:${R(-5, 75)}%;--c:${c};--d:${R(10, 18)}s;--dl:-${R(0, 10)}s"></div>`;
+                for (let i = 0; i < 16; i++) h += `<div class="aqi-dust" style="--x:${R(0, 95)}%;--y:${R(10, 90)}%;--d:${R(2, 5)}s;--dl:-${R(0, 4)}s"></div>`;
+            }
+            el.innerHTML = h;
+        }
+
+        /* 3. SISTEM AUDIO DENGAN MELODI TRADISIONAL BERUBAH TIAP JAM & NARRASI DWIBAHASA */
+        /* ===== NADA & MELODI JAM (12 MELODI ORISINAL, TIAP JAM BERBEDA) ===== */
+        const SEMI = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+        const noteF = n => { const m = n.match(/^([A-G])([#b]?)(\d)$/); const st = SEMI[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0) + (+m[3] + 1) * 12; return 440 * Math.pow(2, (st - 69) / 12); };
+        // r = melodi tangan kanan, b = iringan bass (nada:ketukan). Tiap jam beda tangga nada, tempo & ritme.
+        const CLOCK_MELODIES = {   // 12 lagu klasik domain publik; nada:ketukan, R = jeda
+            1:  { bpm: 84,  r: "F#5:1 E5:1 D5:1 C#5:1 B4:1 A4:1 B4:1 C#5:1 D5:3", b: "D3:2 A3:2 B3:2 F#3:2 D3:3" },                                   // Pachelbel: Canon in D
+            2:  { bpm: 128, r: "E5:.5 D#5:.5 E5:.5 D#5:.5 E5:.5 B4:.5 D5:.5 C5:.5 A4:1.5 C4:.5 E4:.5 A4:.5 B4:1.5 E4:.5 G#4:.5 B4:.5 C5:1.5 A4:3", b: "R:4 A3:3 E3:3 A3:4" }, // Beethoven: Für Elise
+            3:  { bpm: 190, r: "A4:1 C5:2 D5:1 E5:1.5 F5:.5 E5:1 D5:2 B4:1 G4:1.5 A4:.5 B4:1 C5:2 A4:1 A4:3", b: "A3:6 G3:6 E3:6 A3:4" },          // Greensleeves
+            4:  { bpm: 120, r: "E5:1 E5:1 F5:1 G5:1 G5:1 F5:1 E5:1 D5:1 C5:1 C5:1 D5:1 E5:1 E5:1.5 D5:.5 D5:3", b: "C3:4 G3:4 C3:4 G3:4 C3:3" },   // Beethoven: Ode to Joy
+            5:  { bpm: 132, r: "E5:1 G#5:.5 G#5:.5 G#5:.5 F#5:.5 E5:1 B4:1 B5:.5 B5:.5 B5:.5 A5:.5 G#5:1 B5:1 B5:.5 A5:.5 G#5:.5 F#5:.5 E5:3", b: "E3:3 B3:3 E3:3 B3:3 E3:3" }, // Vivaldi: Spring
+            6:  { bpm: 100, r: "E5:1 C#5:1 B4:1 G#4:1 B4:1 C#5:1 E5:2 C#5:1 B4:1 G#4:1 B4:1 C#5:1 E5:3", b: "E3:4 A3:4 E3:4 A3:2 E3:3" },     // Grieg: Morning Mood
+            7:  { bpm: 120, r: "D5:1 G4:.5 A4:.5 B4:.5 C5:.5 D5:1 G4:1 G4:1 E5:1 C5:.5 D5:.5 E5:.5 F#5:.5 G5:1 G4:1 G4:3", b: "G3:3 B3:3 C4:3 D4:3 G3:4" }, // Bach/Petzold: Minuet in G
+            8:  { bpm: 104, r: "E4:1 E4:1 G4:2 E4:1 E4:1 G4:2 E4:1 G4:1 C5:2 B4:3", b: "C3:3 C3:3 C3:3 G3:3 C3:3" },                               // Brahms: Wiegenlied
+            9:  { bpm: 150, r: "B4:.5 A4:.5 G#4:.5 A4:.5 C5:1.5 D5:.5 C5:.5 B4:.5 C5:.5 E5:1.5 F5:.5 E5:.5 D#5:.5 E5:.5 B5:.5 A5:.5 G#5:.5 A5:.5 B5:.5 A5:.5 G#5:.5 A5:.5 C6:2.5", b: "A3:2 E3:2 A3:2 E3:2 A3:2 E3:2 A3:2 E3:2" }, // Mozart: Turkish March
+            10: { bpm: 88,  r: "B4:2 E5:1 F#5:1 G5:2 A5:1 G5:1 F#5:1 E5:3", b: "E3:4 A3:4 B3:2 E3:3" },                                          // Tchaikovsky: Swan Lake
+            11: { bpm: 96,  r: "G4:1 A4:1 B4:1.5 D5:1.5 B4:1 A4:1 G4:1 E4:1.5 G4:.5 A4:3", b: "G3:3 D4:3 C4:3 D4:2 G3:3" },                            // Holst: Jupiter
+            12: { bpm: 112, r: "G#4:1 F#4:1 E4:1 B3:2 E4:1 G#4:1 F#4:1 B3:2 G#4:1 E4:1 F#4:1 B3:3", b: "E3:5 B2:5 E3:5" }                           // Westminster Quarters
+        };
+        const CHIME_Q = {   // chime perempat jam: :15 pendek, :30 sedang, :45 panjang
+            15: { bpm: 84, r: "E5:1 G5:1 C6:2.5", b: "C4:4" },
+            30: { bpm: 84, r: "E5:1 G5:1 A5:1 G5:1 E5:1 D5:2.5", b: "C4:3 G3:4" },
+            45: { bpm: 84, r: "E5:1 G5:1 A5:1 G5:1 C6:1 B5:1 A5:1 G5:3", b: "C4:4 F3:3 C4:4" }
+        };
+                const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+        /* 3. SISTEM AUDIO: ANTRIAN TUNGGAL (TIDAK TUMPANG TINDIH) + NARASI DWIBAHASA ID -> EN */
+        const AudioEngine = {
+            queue: [], isPlaying: false, ctx: null, master: null, gen: 0, _abort: null, _aborts: [], _seq: 0,
+            liteMode: 'auto', lite: false,
+            init() {
+                if (!this.ctx) {
+                    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+                    this.ctx = new AC(); this.ctx.onstatechange = () => this.audioHint();
+                }
+                if (this.ctx.state === 'suspended') { try { const p = this.ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+            },
+            /* HP lama/ringan -> mode audio ringan (tanpa reverb & filter, harmonik lebih sedikit) */
+            isLite() {
+                if (this.liteMode === 'on') return true; if (this.liteMode === 'off') return false;
+                const mob = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent || '');
+                const mem = navigator.deviceMemory, cores = navigator.hardwareConcurrency || 2;
+                return mob && (!mem || mem <= 3 || cores <= 4);
+            },
+            audioHint() {
+                let el = document.getElementById('audio-hint');
+                if (!el) { el = document.createElement('div'); el.id = 'audio-hint'; el.style.cssText = 'position:fixed;left:50%;bottom:3vh;transform:translateX(-50%);z-index:99999;padding:10px 18px;border-radius:30px;background:rgba(15,23,42,0.92);color:#fff;font:700 14px sans-serif;display:none;pointer-events:none'; el.innerText = '🔇 Suara terkunci browser — ketuk layar sekali untuk mengaktifkan'; document.body.appendChild(el); }
+                el.style.display = (this.ctx && this.ctx.state !== 'running') ? 'block' : 'none';
+            },
+            getMaster() {
+                this.init();
+                if (!this.master) {
+                    this.lite = this.isLite();
+                    this.master = this.ctx.createGain(); this.master.gain.value = 1.0;
+                    let dest = this.ctx.destination;
+                    if (this.ctx.createDynamicsCompressor) {   // limiter: keras tapi tidak pecah
+                        const cp = this.ctx.createDynamicsCompressor();
+                        cp.threshold.value = -10; cp.knee.value = 8; cp.ratio.value = 8; cp.attack.value = 0.003; cp.release.value = 0.25;
+                        cp.connect(dest); dest = cp;
+                    }
+                    this.master.connect(dest);
+                    this.revIn = null;   // reverb ruangan hangat untuk piano & chime
+                    if (this.ctx.createConvolver && !this.lite) {
+                        try {
+                            const cv = this.ctx.createConvolver(), sr = this.ctx.sampleRate, len = Math.floor(sr * 2.4), ir = this.ctx.createBuffer(2, len, sr);
+                            for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+                            cv.buffer = ir; const rg = this.ctx.createGain(); rg.gain.value = 0.3; rg.connect(cv); cv.connect(this.master); this.revIn = rg;
+                        } catch (e) { this.revIn = null; }
+                    }
+                }
+                return this.master;
+            },
+            killSound() {
+                if (!this.master) return;
+                const m = this.master; this.master = null;
+                try { m.gain.cancelScheduledValues(0); m.gain.setTargetAtTime(0, this.ctx.currentTime, 0.03); } catch (e) {}
+                setTimeout(() => { try { m.disconnect(); } catch (e) {} }, 400);
+            },
+            cancelSpeech() {
+                try { if (typeof responsiveVoice !== 'undefined') responsiveVoice.cancel(); } catch (e) {}
+                try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
+            },
+            interrupt() {
+                this.gen++;
+                if (this._abort) this._abort();
+                this._aborts.splice(0).forEach(r => r());
+                this.cancelSpeech(); this.killSound();
+            },
+            /* SATU PEMANGGILAN = SATU URUTAN UTUH. Prioritas 1 memotong semua; 2 & 3 antre berurutan. */
+            play(priority, ...steps) {
+                return new Promise(resolve => {
+                    const item = { priority, steps, seq: this._seq++, done: resolve };
+                    if (priority === 1) {
+                        this.queue.splice(0).forEach(q => q.done());
+                        this.interrupt();
+                        this.queue.push(item);
+                    } else {
+                        this.queue.push(item);
+                        this.queue.sort((a, b) => a.priority - b.priority || a.seq - b.seq);
+                    }
+                    this.process();
+                });
+            },
+            async process() {
+                if (this.isPlaying) return;
+                this.isPlaying = true;
+                while (this.queue.length > 0) {
+                    const item = this.queue.shift(); const g = this.gen;
+                    for (const st of item.steps) {
+                        if (g !== this.gen) break;
+                        this._aborts = []; this.audioHint();
+                        const abortP = new Promise(r => this._aborts.push(r));
+                        try { this.init(); await Promise.race([Promise.resolve().then(st), abortP]); } catch (e) { console.error('Audio Error', e); }
+                    }
+                    item.done();
+                    if (g === this.gen) await sleep(350);
+                }
+                this.isPlaying = false;
+            },
+            clear() { this.queue.splice(0).forEach(q => q.done()); this.interrupt(); },
+            whenIdle(max = 30000) {
+                return new Promise(r => { const t0 = Date.now(); const c = () => { if ((!this.isPlaying && !this.queue.length) || Date.now() - t0 > max) r(); else setTimeout(c, 250); }; c(); });
+            },
+
+            speak(text, lang = 'id') {
+                return new Promise(resolve => {
+                    let done = false, tm;
+                    const finish = () => { if (done) return; done = true; clearTimeout(tm); if (this._abort === finish) this._abort = null; resolve(); };
+                    this._abort = finish;
+                    tm = setTimeout(finish, 4000 + text.length * 130);
+                    try {
+                        if (typeof responsiveVoice !== 'undefined' && responsiveVoice.voiceSupport()) {
+                            responsiveVoice.speak(text, lang === 'id' ? 'Indonesian Female' : 'US English Female', { pitch: 1.0, rate: 0.88, volume: 1.0, onend: finish, onerror: finish });
+                            return;
+                        }
+                    } catch (e) {}
+                    if ('speechSynthesis' in window) {
+                        const u = new SpeechSynthesisUtterance(text); u.lang = lang === 'id' ? 'id-ID' : 'en-US'; u.rate = 0.9;
+                        const v = (speechSynthesis.getVoices() || []).find(x => x.lang && x.lang.toLowerCase().startsWith(lang === 'id' ? 'id' : 'en'));
+                        if (v) u.voice = v;
+                        u.onend = finish; u.onerror = finish; speechSynthesis.speak(u);
+                    } else finish();
+                });
+            },
+            /* langkah dwibahasa: Indonesia lalu Inggris, dengan jeda singkat */
+            bi(textID, textEN) { return [() => this.speak(textID, 'id'), () => sleep(300), () => this.speak(textEN, 'en')]; },
+            announce(priority, soundFn, textID, textEN) { return this.play(priority, ...(soundFn ? [soundFn] : []), ...this.bi(textID, textEN)); },
+            speakBilingual(textID, textEN, priority = 2) { return this.announce(priority, null, textID, textEN); },
+
+            /* TIMBRE BEL JAM (partial harmonik, peluruhan panjang) */
+            bell(f, t, d, g = 0.3) {
+                const c = this.ctx, m = this.getMaster(), t0 = c.currentTime + t + 0.02;
+                [[1, 1, 1], [2, 0.35, 0.55], [3, 0.16, 0.35], [4.2, 0.07, 0.2]].forEach(([r, a, k]) => {
+                    const o = c.createOscillator(), gn = c.createGain(); o.type = 'sine'; o.frequency.value = f * r;
+                    gn.gain.setValueAtTime(0.0001, t0); gn.gain.linearRampToValueAtTime(g * a, t0 + 0.006); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + d * k);
+                    o.connect(gn); gn.connect(m); o.start(t0); o.stop(t0 + d * k + 0.05);
+                });
+            },
+            /* TIMBRE MARIMBA KRISTAL (untuk notifikasi, pendek & ceria) */
+            pluck(f, t, d, g = 0.3) {
+                const c = this.ctx, m = this.getMaster(), t0 = c.currentTime + t + 0.02;
+                [['triangle', 1, 1], ['sine', 2, 0.28]].forEach(([ty, r, a]) => {
+                    const o = c.createOscillator(), gn = c.createGain(); o.type = ty; o.frequency.value = f * r;
+                    gn.gain.setValueAtTime(0.0001, t0); gn.gain.linearRampToValueAtTime(g * a, t0 + 0.004); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + d);
+                    o.connect(gn); gn.connect(m); o.start(t0); o.stop(t0 + d + 0.05);
+                });
+            },
+            playTone(f, t, d, g) { this.bell(f, t, d, g); },
+
+            /* PIANO: harmonik bertingkat + sedikit inharmonis, peluruhan alami, filter hangat, reverb */
+            piano(f, t, d, vel = 0.7) {
+                const c = this.ctx, m = this.getMaster(), t0 = c.currentTime + t + 0.02;
+                const dec = Math.max(1.2, Math.min(4.6, 1.4 + d * 1.1 - Math.log2(f / 261) * 0.35));
+                let node = m;
+                if (c.createBiquadFilter && !this.lite) { const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(9000, f * (3 + vel * 6)); lp.Q.value = 0.4; lp.connect(m); node = lp; }
+                (this.lite ? [[1, 1.3], [2, 0.5], [3, 0.2]] : [[1, 1], [2, 0.5], [3, 0.28], [4, 0.16], [5, 0.1], [6, 0.06], [1.0009, 0.35]]).forEach(([r, a], i) => {
+                    const o = c.createOscillator(), g = c.createGain(), k = 1 / (1 + (r === 1.0009 ? 1 : r) * 0.35);
+                    o.type = 'sine'; o.frequency.value = f * r * Math.sqrt(1 + 0.0004 * r * r);
+                    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(vel * 0.22 * a, t0 + 0.004);
+                    g.gain.exponentialRampToValueAtTime(vel * 0.22 * a * 0.3, t0 + 0.3 * k + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dec * k + 0.2);
+                    o.connect(g); g.connect(node); if (this.revIn && i === 0) g.connect(this.revIn);
+                    o.start(t0); o.stop(t0 + dec * k + 0.3);
+                });
+            },
+            /* CELESTA LEMBUT (nada notifikasi vacuum) */
+            soft(f, t, d, g = 0.3) {
+                const c = this.ctx, m = this.getMaster(), t0 = c.currentTime + t + 0.02;
+                [[1, 1], [2, 0.3], [3.01, 0.1]].forEach(([r, a]) => {
+                    const o = c.createOscillator(), gn = c.createGain(); o.type = 'sine'; o.frequency.value = f * r;
+                    gn.gain.setValueAtTime(0.0001, t0); gn.gain.linearRampToValueAtTime(g * a, t0 + 0.006); gn.gain.exponentialRampToValueAtTime(0.0001, t0 + d / (1 + r * 0.3));
+                    o.connect(gn); gn.connect(m); if (this.revIn) gn.connect(this.revIn); o.start(t0); o.stop(t0 + d + 0.1);
+                });
+            },
+            /* GONG TRADISIONAL (nada dasar versi awal: 130.81 / 261.63 / 349.23 Hz) */
+            tradGong(t, dur = 3.2) {
+                const c = this.ctx, m = this.getMaster(), t0 = c.currentTime + t + 0.02;
+                [[130.81, 'sine', 0.6], [131.2, 'sine', 0.3], [261.63, 'sine', 0.5], [349.23, 'triangle', 0.35]].forEach(([f, ty, a]) => {
+                    const o = c.createOscillator(), g = c.createGain(); o.type = ty; o.frequency.value = f;
+                    g.gain.setValueAtTime(0.0001, t0); g.gain.linearRampToValueAtTime(a, t0 + 0.004); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+                    o.connect(g); g.connect(m); o.start(t0); o.stop(t0 + dur + 0.05);
+                });
+            },
+
+            /* PEMAIN SKOR: dua tangan, velocity bervariasi, timing manusiawi, melambat di akhir (rubato) */
+            playScore(M, strikes = 0) {
+                return new Promise(resolve => {
+                    this.init();
+                    const sp = 60 / (M.bpm * 1.15);
+                    const parse = str => str.split(' ').map(tok => { const [n, b] = tok.split(':'); return { n, b: +b }; });
+                    const R = parse(M.r), B = M.b ? parse(M.b) : [];
+                    const tot = a => a.reduce((x, y) => x + y.b, 0), T = Math.max(tot(R), tot(B));
+                    const tm = b => sp * (b + 0.3 * Math.pow(Math.max(0, b - 0.7 * T), 2) / (0.3 * T));
+                    const hand = (arr, vel) => { let p = 0; arr.forEach(x => {
+                        if (x.n !== 'R') {
+                            const t = Math.max(0, tm(p) + (Math.random() - 0.5) * 0.028), d = tm(p + x.b) - tm(p);
+                            let v = vel * (0.86 + Math.random() * 0.28); if (Math.abs(p % 1) < 0.01) v *= 1.1; if (x.b >= 1.5) v *= 1.06;
+                            this.piano(noteF(x.n), t, d, Math.min(1, v));
+                        }
+                        p += x.b; }); };
+                    hand(R, 0.72); hand(B, 0.46);
+                    let end = tm(T) + 1.6;
+                    if (strikes) { const s = end + 0.4; for (let i = 0; i < strikes; i++) this.tradGong(s + i * 2.4, 2.8); end = s + (strikes - 1) * 2.4 + 2.8; }
+                    setTimeout(resolve, end * 1000);
+                });
+            },
+            playStrikes(h) {
+                return new Promise(resolve => { this.init(); for (let i = 0; i < h; i++) this.tradGong(i * 2.4, 2.8); setTimeout(resolve, ((h - 1) * 2.4 + 2.8) * 1000); });
+            },
+            playMelodyForHour(hour, withStrikes = false) { const h = hour % 12 || 12; return this.playScore(CLOCK_MELODIES[h], withStrikes ? h : 0); },
+            playQuarter(m) { return this.playScore(CHIME_Q[m] || CHIME_Q[15], 0); },
+
+            /* NOTIFIKASI: piano lembut tiga nada naik (A mayor), hangat & bergema */
+            playMelodicNotificationChime() {
+                return new Promise(resolve => {
+                    this.init();
+                    [['E5', 0, 0.55], ['A5', 0.2, 0.6], ['C#6', 0.42, 0.66]].forEach(([n, t, v]) => this.piano(noteF(n), t, 0.9, v));
+                    setTimeout(resolve, 2200);
+                });
+            },
+            playModernClockChime() { return this.playMelodicNotificationChime(); },
+            playWin8Notification() { return this.playMelodicNotificationChime(); },
+
+            /* SHOLAT: gong tradisional */
+            playGong() { return new Promise(resolve => { this.init(); this.tradGong(0, 4.5); setTimeout(resolve, 2800); }); },
+            /* VACUUM 5 MENIT SEBELUM: "bing-bong" hangat turun lalu naik */
+            playVacuumBell() {
+                return new Promise(resolve => {
+                    this.init();
+                    [['G5', 0], ['E5', 0.5], ['C5', 1.0], ['E5', 1.7], ['G5', 2.2], ['C6', 2.7]].forEach(([n, t], i) => this.soft(noteF(n), t, i === 5 ? 2.2 : 1.4, 0.34));
+                    setTimeout(resolve, 4200);
+                });
+            },
+            /* VACUUM MULAI: percikan naik yang ceria */
+            playVacuumStartChime() {
+                return new Promise(resolve => {
+                    this.init();
+                    [['C5', 0], ['E5', 0.12], ['G5', 0.24], ['C6', 0.38], ['E6', 0.54]].forEach(([n, t], i) => this.soft(noteF(n), t, i === 4 ? 2 : 1.1, 0.32));
+                    setTimeout(resolve, 2400);
+                });
+            },
+            /* VACUUM SELESAI: turun menenangkan, seperti tanda charging */
+            playVacuumDoneChime() {
+                return new Promise(resolve => {
+                    this.init();
+                    [['G5', 0], ['E5', 0.42], ['D5', 0.84], ['C5', 1.3]].forEach(([n, t], i) => this.soft(noteF(n), t, i === 3 ? 2.4 : 1.5, 0.34));
+                    this.bell(noteF('C4'), 1.3, 2.4, 0.18);
+                    setTimeout(resolve, 3200);
+                });
+            }
+        };
+
+                /* 4. ALUR PRESENTASI CERDAS (TILES -> FLIP CUACA -> FLIP UDARA -> TUTUP OTOMATIS) */
+        let presentationTimer = null; let presToken = 0;
+
+        async function runFullPresentationFlow(strikeHour = 0) {
+            const tok = ++presToken; const alive = () => tok === presToken;
+            await AudioEngine.whenIdle(45000); if (!alive()) return;   // tunggu melodi + bacaan jam selesai
+            updateMetroDashboardData();
+            document.getElementById('metro-fullscreen-tiles').classList.add('show-tiles');
+            document.getElementById('main-view').classList.add('dimmed');
+            const grid = document.getElementById('metro-tiles-grid');
+            const scContainer = document.getElementById('metro-showcase-container');
+            const scWeather = document.getElementById('showcase-weather-card');
+            const scAqi = document.getElementById('showcase-aqi-card');
+            grid.style.transform = "rotateY(0deg) scale(1)"; grid.style.opacity = "1";
+            scContainer.classList.remove('active'); scWeather.style.display = "none"; scAqi.style.display = "none";
+            await sleep(3500); if (!alive()) return;
+
+            grid.style.transform = "rotateY(-90deg) scale(0.9)"; grid.style.opacity = "0";
+            await sleep(400); if (!alive()) return;
+            scWeather.style.display = "flex"; scAqi.style.display = "none"; scContainer.classList.add('active');
+            let t0 = Date.now();
+            await AudioEngine.speakBilingual(
+                `Kondisi cuaca saat ini ${currentCond.toLowerCase()}, dengan suhu ${currentTemp} derajat celsius. ${currentAdvice}`,
+                `Current weather is ${currentCondEN.toLowerCase()}, with a temperature of ${currentTemp} degrees celsius. ${currentAdviceEN}`, 2);
+            if (!alive()) return;
+            await sleep(Math.max(1500, 9000 - (Date.now() - t0))); if (!alive()) return;
+
+            scContainer.classList.remove('active'); await sleep(400); if (!alive()) return;
+            scWeather.style.display = "none"; scAqi.style.display = "flex"; scContainer.classList.add('active');
+            t0 = Date.now();
+            await AudioEngine.speakBilingual(
+                `Kualitas udara di luar ruangan terdeteksi ${currentAQITextID}. ${currentAQIAdvice}`,
+                `Outdoor air quality index is currently ${currentAQITextEN}. ${currentAQIAdviceEN}`, 2);
+            if (!alive()) return;
+            await sleep(Math.max(1500, 9000 - (Date.now() - t0))); if (!alive()) return;
+            closeMetroLiveTiles();
+            if (strikeHour) await AudioEngine.play(3, () => AudioEngine.playStrikes(strikeHour));   // gong SETELAH semua selesai
+        }
+
+        function testShowcaseOnly(type) {
+            presToken++;
+            updateMetroDashboardData();
+            document.getElementById('metro-fullscreen-tiles').classList.add('show-tiles');
+            document.getElementById('main-view').classList.add('dimmed');
+
+            const grid = document.getElementById('metro-tiles-grid');
+            const scContainer = document.getElementById('metro-showcase-container');
+            const scWeather = document.getElementById('showcase-weather-card');
+            const scAqi = document.getElementById('showcase-aqi-card');
+
+            grid.style.transform = "rotateY(-90deg) scale(0.9)";
+            grid.style.opacity = "0";
+            
+            if (type === 'weather') {
+                scWeather.style.display = "flex"; scAqi.style.display = "none";
+            } else {
+                scWeather.style.display = "none"; scAqi.style.display = "flex";
+            }
+            scContainer.classList.add('active');
+        }
+
+        function openMetroGridOnly() {
+            presToken++;
+            updateMetroDashboardData();
+            document.getElementById('metro-fullscreen-tiles').classList.add('show-tiles');
+            document.getElementById('main-view').classList.add('dimmed');
+
+            const grid = document.getElementById('metro-tiles-grid');
+            const scContainer = document.getElementById('metro-showcase-container');
+            grid.style.transform = "rotateY(0deg) scale(1)";
+            grid.style.opacity = "1";
+            scContainer.classList.remove('active');
+        }
+
+        function closeMetroLiveTiles() {
+            presToken++;
+            document.getElementById('metro-fullscreen-tiles').classList.remove('show-tiles');
+            document.getElementById('main-view').classList.remove('dimmed');
+            
+            const grid = document.getElementById('metro-tiles-grid');
+            const scContainer = document.getElementById('metro-showcase-container');
+            grid.style.transform = "rotateY(0deg) scale(1)";
+            grid.style.opacity = "1";
+            scContainer.classList.remove('active');
+        }
+
+        /* 5. SPLIT-SCREEN MULTITASKING (VACUUM 2 JAM) */
+        let vacuumSplitState = {
+            active: false,
+            isTest: false,
+            totalSec: 7200,
+            remainingSec: 7200,
+            speedMultiplier: 60
+        };
+
+        function formatHMS(totalSeconds) {
+            if (totalSeconds < 0) totalSeconds = 0;
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = Math.floor(totalSeconds % 60);
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        }
+
+        const PRE_SEC = 300;
+        let vacuumPre = { active: false, isTest: false, remainingSec: 0, speed: 1, splitSpeed: 60 };
+        let vacStartFlashUntil = 0, vacDockTimers = [], vacChargeIv = null;
+
+        function formatMS(sec) { sec = Math.max(0, Math.ceil(sec)); return `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`; }
+
+        function resetVacuumVisual() {
+            vacDockTimers.forEach(clearTimeout); vacDockTimers = [];
+            if (vacChargeIv) { clearInterval(vacChargeIv); vacChargeIv = null; }
+            document.body.classList.remove('split-active', 'vac-docking', 'vac-charging', 'vac-away');
+            const bot = document.getElementById('vacuum-bot');
+            bot.style.animation = ''; bot.style.transition = ''; bot.style.transform = '';
+        }
+        /* reset senyap (tanpa suara) */
+        function cleanupVacuum() {
+            resetVacuumVisual();
+            vacuumSplitState.active = false; vacuumSplitState.isTest = false;
+            if (vacuumPre.isTest) { vacuumPre.active = false; vacuumPre.isTest = false; }
+            updateVacuumPreBanner();
+        }
+
+        function startVacuumSplit(isTest = false, speed = 60) {
+            resetVacuumVisual();
+            vacuumSplitState.active = true;
+            vacuumSplitState.isTest = isTest;
+            vacuumSplitState.totalSec = 7200;
+            vacuumSplitState.remainingSec = 7200;
+            vacuumSplitState.speedMultiplier = speed;
+            document.body.classList.add('split-active');
+            updateVacuumUI();
+            const btnSpeed = document.getElementById('vtp-speed-btn');
+            if (btnSpeed) btnSpeed.innerText = speed > 1 ? "⏩ Simulasi Cepat (60x)" : "⏱️ Mode Nyata (1x)";
+        }
+
+        /* SELESAI: robot berjalan pulang ke dock, lalu charging (baterai naik) */
+        function finishVacuum() {
+            if (!vacuumSplitState.active) return;
+            const pct = Math.min(100, Math.max(0, (vacuumSplitState.totalSec - vacuumSplitState.remainingSec) / vacuumSplitState.totalSec * 100));
+            const batStart = Math.round(100 - pct * 0.65);
+            const bot = document.getElementById('vacuum-bot');
+            const frozen = getComputedStyle(bot).transform;
+            vacuumSplitState.active = false; vacuumSplitState.isTest = false;
+            bot.style.animation = 'none'; bot.style.transform = (frozen && frozen !== 'none') ? frozen : 'translate3d(12vw,0,0)';
+            document.body.classList.add('vac-docking'); document.body.classList.remove('split-active');
+            void bot.offsetWidth;
+            bot.style.transition = 'transform 6s cubic-bezier(0.45, 0, 0.2, 1)';
+            bot.style.transform = 'translate3d(22vw,0,0) rotate(0deg)';
+            const label = document.getElementById('vac-dock-label');
+            label.innerText = `⚡ MENUJU DOCK • ${batStart}%`;
+            AudioEngine.announce(1, () => AudioEngine.playVacuumDoneChime(),
+                "Robot vacuum selesai, kembali ke dock untuk proses charging.",
+                "The robot vacuum has finished cleaning and is returning to the dock to charge.");
+            vacDockTimers.push(setTimeout(() => {
+                document.body.classList.add('vac-charging');
+                let b = batStart; label.innerText = `⚡ CHARGING • ${b}%`;
+                vacChargeIv = setInterval(() => {
+                    b = Math.min(100, b + Math.max(1, Math.ceil((100 - batStart) / 30)));
+                    label.innerText = b >= 100 ? '🔋 BATERAI PENUH • 100%' : `⚡ CHARGING • ${b}%`;
+                    if (b >= 100) {
+                        clearInterval(vacChargeIv); vacChargeIv = null;
+                        // 100%: tampilkan "penuh" sebentar, lalu robot & dock bergeser keluar layar agar layar bersih
+                        vacDockTimers.push(setTimeout(() => {
+                            document.body.classList.add('vac-away');
+                            bot.style.transition = 'transform 2.2s cubic-bezier(0.5, 0, 0.9, 0.4)';
+                            bot.style.transform = 'translate3d(0,0,0)';
+                            vacDockTimers.push(setTimeout(resetVacuumVisual, 2600));
+                        }, 2500));
+                    }
+                }, 500);
+            }, 6000));
+        }
+        /* tombol "Hentikan": sesi aktif -> selesai & pulang dock; hanya timer 5 menit -> batalkan */
+        function stopVacuumSplit() {
+            if (vacuumSplitState.active) finishVacuum();
+            else if (vacuumPre.active) cleanupVacuum();
+        }
+
+        function toggleVacuumSpeed() {
+            vacuumSplitState.speedMultiplier = vacuumSplitState.speedMultiplier === 1 ? 60 : 1;
+            const btnSpeed = document.getElementById('vtp-speed-btn');
+            if (btnSpeed) btnSpeed.innerText = vacuumSplitState.speedMultiplier > 1 ? "⏩ Simulasi Cepat (60x)" : "⏱️ Mode Nyata (1x)";
+        }
+
+        function updateVacuumUI() {
+            const elCountdown = document.getElementById('vtp-countdown');
+            const elFill = document.getElementById('vtp-progress-fill');
+            const elPct = document.getElementById('vtp-progress-pct');
+            const elArea = document.getElementById('vtp-clean-area');
+            const elBat = document.getElementById('vtp-battery');
+            if (!elCountdown || !elFill || !elPct || !elArea) return;
+            const remaining = Math.max(0, vacuumSplitState.remainingSec);
+            const elapsed = vacuumSplitState.totalSec - remaining;
+            const pct = Math.min(100, Math.max(0, (elapsed / vacuumSplitState.totalSec) * 100));
+            elCountdown.innerText = formatHMS(remaining);
+            elFill.style.width = pct.toFixed(1) + '%';
+            elPct.innerText = Math.round(pct) + '%';
+            elArea.innerText = Math.round((pct / 100) * 85) + ' m²';
+            if (elBat) elBat.innerText = Math.round(100 - pct * 0.65) + '%';
+        }
+
+        /* TIMER 5 MENIT SEBELUM KERJA: banner kecil, lalu layar penuh di 60 detik terakhir */
+        function updateVacuumPreBanner() {
+            const b = document.getElementById('vacuum-pre-banner'); if (!b) return;
+            const r = vacuumPre.remainingSec;
+            b.classList.toggle('show', vacuumPre.active && r > 60);
+            if (vacuumPre.active) {
+                document.getElementById('vpb-time').innerText = formatMS(r);
+                document.getElementById('vpb-fill').style.width = Math.min(100, Math.max(0, (PRE_SEC - r) / PRE_SEC * 100)) + '%';
+            }
+        }
+        function tickVacuumPre(now) {
+            if (vacuumPre.isTest) {
+                if (!vacuumPre.active) return;
+                vacuumPre.remainingSec -= vacuumPre.speed;
+                if (vacuumPre.remainingSec <= 0) {
+                    vacuumPre.active = false; vacuumPre.isTest = false; updateVacuumPreBanner();
+                    ClockEngine.triggerEvent('vacuum-start', 0, 0, { test: true, splitSpeed: vacuumPre.splitSpeed });
+                    return;
+                }
+            } else {
+                const cur = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds(); let rem = 0;
+                for (const sc of vacuumSchedules) { const [h, m] = sc.split(':').map(Number); const d = h * 3600 + m * 60 - cur; if (d > 0 && d <= PRE_SEC) { rem = d; break; } }
+                vacuumPre.active = rem > 0; vacuumPre.remainingSec = rem;
+            }
+            updateVacuumPreBanner();
+        }
+
+        function checkRealtimeVacuumSchedule(nowDate) {
+            if (vacuumSplitState.isTest) return;
+            const curTotalSec = nowDate.getHours() * 3600 + nowDate.getMinutes() * 60 + nowDate.getSeconds();
+            let isScheduleActive = false, currentRemaining = 0;
+            for (let sched of vacuumSchedules) {
+                const [sh, sm] = sched.split(':').map(Number);
+                const startSec = sh * 3600 + sm * 60, endSec = startSec + 7200;
+                if (curTotalSec >= startSec && curTotalSec < endSec) { isScheduleActive = true; currentRemaining = endSec - curTotalSec; break; }
+            }
+            if (isScheduleActive) {
+                if (!vacuumSplitState.active && !document.body.classList.contains('vac-docking')) startVacuumSplit(false, 1);
+                if (vacuumSplitState.active) { vacuumSplitState.remainingSec = currentRemaining; updateVacuumUI(); }
+            } else if (vacuumSplitState.active) {
+                finishVacuum();
+            }
+        }
+
+        const ClockEngine = {
+            triggerEvent(type, h = 0, m = 0, opts = {}) {
+                const hour12 = h % 12 || 12;
+                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                const A = AudioEngine;
+
+                if (type === 'sholat') {
+                    const sholatName = jadwalSholat[timeStr] || "Magrib";
+                    if (sholatName === "Terbit") {
+                        A.announce(1, null, "Selamat pagi! Saat ini telah memasuki waktu terbit matahari, waktunya bangun dan beraktivitas.",
+                            "Good morning! The sun has risen, time to wake up and start your day.");
+                    } else {
+                        A.announce(1, () => A.playGong(), `Saat ini telah memasuki waktu sholat ${sholatName}. Mari laksanakan ibadah sholat.`,
+                            `It is now time for ${sholatName} prayer. Let us perform our prayer.`);
+                    }
+                }
+                else if (type === 'vacuum-warn') {
+                    A.announce(2, () => A.playVacuumBell(),
+                        "Perhatian, lima menit lagi robot vacuum akan mulai bekerja. Mohon bersihkan benda-benda yang berserakan di lantai.",
+                        "Attention, the robot vacuum will begin cleaning in five minutes. Please clear any objects from the floor.");
+                }
+                else if (type === 'vacuum-start') {
+                    startVacuumSplit(!!opts.test, opts.test ? (opts.splitSpeed || 60) : 1);
+                    vacStartFlashUntil = Date.now() + 8000;
+                    A.announce(2, () => A.playVacuumStartChime(),
+                        "Robot vacuum mulai membersihkan rumah sekarang.",
+                        "The robot vacuum is now cleaning the house.");
+                }
+                else if (type === '15min') {
+                    A.play(3, () => A.playQuarter(m), ...A.bi(`Sekarang jam ${hour12} lebih ${m} menit.`, `It is now ${m} minutes past ${hour12}.`));
+                }
+                else if (type === 'hourly') {
+                    if (h >= 22 || h < 4) {
+                        A.play(2, () => A.playMelodyForHour(h, false), ...A.bi("Mode jangan ganggu telah diaktifkan. Selamat beristirahat dan mimpi indah.",
+                            "Do not disturb mode is activated. Have a restful night and sweet dreams."), () => A.playStrikes(h));
+                        return;
+                    }
+                    const steps = [() => A.playMelodyForHour(h, false), ...A.bi(`Sekarang jam ${hour12} tepat.`, `It is exactly ${hour12} o'clock.`)];
+                    if (h === 6 && (new Date().getDay() >= 1 && new Date().getDay() <= 5)) {
+                        steps.push(...A.bi("Selamat pagi! Waktunya bersiap-siap untuk pergi ke sekolah. Semangat belajar!",
+                            "Good morning! Time to get ready for school. Have a wonderful and productive day!"));
+                    }
+                    A.play(3, ...steps);
+                    runFullPresentationFlow(h);
+                }
+            },
+
+            checkRealtimeEvents(h, m) {
+                const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+                const isDND = (h >= 22 || h < 4);
+                if (jadwalSholat[timeStr]) this.triggerEvent('sholat', h, m);
+                else if (warnVacuumSchedules.includes(timeStr)) this.triggerEvent('vacuum-warn', h, m);
+                else if (vacuumSchedules.includes(timeStr)) this.triggerEvent('vacuum-start', h, m);
+                else if (m === 0) { if (!isDND || h === 22) this.triggerEvent('hourly', h, m); }
+                else if (m === 15 || m === 30 || m === 45) { if (!isDND) this.triggerEvent('15min', h, m); }
+            }
+        };
+
+        function createFlipHalf(c, v) { const d = document.createElement('div'); d.className = c; const t = document.createElement('div'); t.className = 'flip-inner-text'; t.innerText = v; d.appendChild(t); return d; }
+        
+        function updateFlip(elementId, newValue) {
+            const el = document.getElementById(elementId);
+            if (!el) return; const currentValue = el.dataset.val;
+            if (currentValue === newValue) return; 
+            
+            if (currentValue === undefined || currentValue === "") {
+                el.dataset.val = newValue; el.innerHTML = '';
+                el.appendChild(createFlipHalf('flip-half flip-top', newValue)); el.appendChild(createFlipHalf('flip-half flip-bottom', newValue)); return;
+            }
+
+            el.dataset.val = newValue; el.innerHTML = ''; 
+            const topStatic = createFlipHalf('flip-half flip-top', newValue); const bottomStatic = createFlipHalf('flip-half flip-bottom', currentValue);
+            const flapTop = createFlipHalf('flip-flap flap-top', currentValue); const flapBottom = createFlipHalf('flip-flap flap-bottom', newValue);
+
+            el.appendChild(topStatic); el.appendChild(bottomStatic); el.appendChild(flapTop); el.appendChild(flapBottom);
+            void el.offsetWidth; flapTop.classList.add('flip-fold-down'); flapBottom.classList.add('flip-unfold-down');
+
+            setTimeout(() => { if (el.dataset.val === newValue) { el.innerHTML = ''; el.appendChild(createFlipHalf('flip-half flip-top', newValue)); el.appendChild(createFlipHalf('flip-half flip-bottom', newValue)); } }, 600);
+        }
+
+        const elMainView = document.getElementById('main-view'); 
+        const elOverlayContainer = document.getElementById('overlay-container'); 
+        const elAlertLabelText = document.getElementById('alert-label-text'); 
+        const elAlertTitle = document.getElementById('alert-title'); 
+        const elAlertCountdown = document.getElementById('alert-countdown'); 
+        const elCountdownRing = document.getElementById('countdown-ring'); 
+        const elCountdownWrapper = document.getElementById('countdown-wrapper'); 
+
+        let isTesting = false; let testSisaWaktu = 0; let activeTestType = ""; let lastMinuteProcessed = -1; let forceTheme = null;
+        let lastAlertActiveState = false;
+
+        function toggleTestPanel() { document.getElementById('test-panel').classList.toggle('show'); }
+        
+        function setThemeDirect(mode) {
+            if (mode === 'day') forceTheme = 'day';
+            else if (mode === 'night') forceTheme = 'night';
+            else forceTheme = null;
+            updateLoop();
+        }
+
+        function playHourMelody(h) { AudioEngine.init(); AudioEngine.play(1, () => AudioEngine.playMelodyForHour(h, true)); }
+        function testModernChimeDirect() { AudioEngine.init(); AudioEngine.play(1, () => AudioEngine.playMelodicNotificationChime()); }
+        function testGongDirect() { AudioEngine.init(); AudioEngine.play(1, () => AudioEngine.playGong()); }
+        function testVacuumBellDirect() { AudioEngine.init(); AudioEngine.play(1, () => AudioEngine.playVacuumBell()); }
+        function testBilingualNarration() {
+            AudioEngine.init();
+            AudioEngine.speakBilingual("Sistem audio dan notifikasi cerdas dwibahasa berfungsi dengan sangat baik.",
+                "Smart bilingual notification and audio system is working perfectly.", 1);
+        }
+
+        /* TES VACUUM: langsung bersih (60x / nyata) */
+        function startVacuumSplitTest(isFast = true) {
+            stopTest(); AudioEngine.init();
+            ClockEngine.triggerEvent('vacuum-start', 0, 0, { test: true, splitSpeed: isFast ? 60 : 1 });
+        }
+        /* TES VACUUM: alur lengkap timer 5 menit -> bersih -> dock (preSpeed 6x ≈ 50 detik, 1 = nyata) */
+        function startVacuumPreTest(preSpeed = 6, splitSpeed = 60) {
+            stopTest(); AudioEngine.init();
+            vacuumPre = { active: true, isTest: true, remainingSec: PRE_SEC, speed: preSpeed, splitSpeed };
+            updateVacuumPreBanner();
+            ClockEngine.triggerEvent('vacuum-warn', 0, 0);
+        }
+        /* TES VACUUM: hanya animasi kembali ke dock + charging */
+        function testDockOnly() {
+            stopTest(); AudioEngine.init();
+            startVacuumSplit(true, 60);
+            vacuumSplitState.remainingSec = 360;
+            vacuumSplitState.totalSec = 7200;
+        }
+
+        function startTest(type) { 
+            stopTest(); 
+            AudioEngine.init(); 
+            isTesting = true; 
+            activeTestType = type; 
+
+            testSisaWaktu = 10; 
+            updateUI(new Date()); 
+        }
+
+        function stopTest() { 
+            isTesting = false; 
+            activeTestType = ""; 
+            forceTheme = null; 
+            cleanupVacuum();
+            closeMetroLiveTiles();
+            AudioEngine.clear(); 
+            updateUI(new Date()); 
+        }
+
+        function forceTimeAudio(h) { stopTest(); AudioEngine.init(); ClockEngine.triggerEvent('hourly', h, 0); }
+
+        ['touchstart', 'touchend', 'mousedown', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, () => {
+            try {
+                AudioEngine.init(); const c = AudioEngine.ctx;
+                if (c && c.state === 'running') return;
+                const b = c.createBuffer(1, 1, 22050), src = c.createBufferSource(); src.buffer = b; src.connect(c.destination); src.start(0);   // buka kunci audio mobile
+            } catch (e) {}
+        }, { passive: true }));
+        function toggleAudioLite(btn) {
+            const order = ['auto', 'on', 'off'], lab = { auto: 'Otomatis', on: 'Ringan (HP lama)', off: 'Penuh (reverb)' };
+            AudioEngine.liteMode = order[(order.indexOf(AudioEngine.liteMode) + 1) % 3];
+            AudioEngine.killSound(); AudioEngine.init();
+            btn.innerText = '🎚️ Mode Audio: ' + lab[AudioEngine.liteMode];
+            AudioEngine.play(1, () => AudioEngine.playMelodicNotificationChime());
+        }
+
+        function startSmartClock() {
+            AudioEngine.init(); 
+            fetchWeatherAndAQI(); 
+            fetchWizStatus();
+            document.getElementById('start-screen').style.opacity = '0';
+            setTimeout(() => { document.getElementById('start-screen').style.display = 'none'; }, 800);
+            document.getElementById('dev-toggle').style.display = 'block';
+            
+            const elem = document.documentElement; if (elem.requestFullscreen) elem.requestFullscreen().catch(e=>{});
+            AudioEngine.speakBilingual("Sistem siap. Mesin presentasi cerdas aktif.", "System ready. Smart presentation engine active.", 1);
+            renderDateText(new Date()); updateLoop(); setInterval(updateLoop, 1000);
+        }
+
+        function updateLoop() {
+            const now = new Date();
+            updateFlip('hours', String(now.getHours()).padStart(2, '0'));
+            updateFlip('minutes', String(now.getMinutes()).padStart(2, '0'));
+            updateFlip('seconds', String(now.getSeconds()).padStart(2, '0'));
+            
+            updateStaticHourlyBg(now.getHours());
+
+            if (forceTheme === 'night') {
+                document.body.classList.add('night-mode');
+            } else if (forceTheme === 'day') {
+                document.body.classList.remove('night-mode');
+            } else {
+                if (now.getHours() >= 18 || now.getHours() < 6) document.body.classList.add('night-mode'); 
+                else document.body.classList.remove('night-mode');
+            }
+
+            if (now.getHours() === 0 && now.getMinutes() === 0 && now.getSeconds() === 0) renderDateText(now);
+            if (now.getMinutes() === 58 && now.getSeconds() === 0) fetchWeatherAndAQI();
+
+// Timer 5 menit & hitung mundur vacuum (non-blocking)
+            tickVacuumPre(now);
+            if (vacuumSplitState.active && vacuumSplitState.isTest) {
+                vacuumSplitState.remainingSec -= vacuumSplitState.speedMultiplier;
+                if (vacuumSplitState.remainingSec <= 0) { vacuumSplitState.remainingSec = 0; updateVacuumUI(); finishVacuum(); }
+                else updateVacuumUI();
+            } else {
+                checkRealtimeVacuumSchedule(now);
+            }
+
+            if (isTesting && activeTestType !== 'smartinfo') { 
+                if (testSisaWaktu === 0) {
+                    if (activeTestType === 'vacuum-warn') ClockEngine.triggerEvent('vacuum-warn', 8, 10);
+                    else if (activeTestType === 'vacuum-start') ClockEngine.triggerEvent('vacuum-start', 8, 15);
+                    else if (activeTestType === '15min') ClockEngine.triggerEvent('15min', 12, 15);
+                    else if (activeTestType === 'school') ClockEngine.triggerEvent('hourly', 6, 0);
+                    else if (activeTestType === 'sholat') ClockEngine.triggerEvent('sholat', 17, 23); 
+                    else if (activeTestType === 'dnd') ClockEngine.triggerEvent('hourly', 22, 0);
+                }
+                if (testSisaWaktu < -60) { 
+                    isTesting = false; 
+                    activeTestType = ""; 
+                } else { 
+                    testSisaWaktu--; 
+                }
+            }
+            
+            if (now.getMinutes() !== lastMinuteProcessed && now.getSeconds() === 0) {
+                lastMinuteProcessed = now.getMinutes();
+                if(!isTesting) ClockEngine.checkRealtimeEvents(now.getHours(), now.getMinutes());
+            }
+            updateUI(now);
+        }
+
+        function updateUI(nowDate) {
+            let showAlert = false; let alertTitle = ""; let alertLabel = ""; let alertClass = ""; let isActionNow = false; let sisaTampil = 0; let totalDurasi = 60;
+
+            const currH = String(nowDate.getHours()).padStart(2, '0'); const currM = String(nowDate.getMinutes()).padStart(2, '0'); const currS = nowDate.getSeconds();
+            const nextMinDate = new Date(nowDate.getTime() + (60 - currS) * 1000);
+            const nextTimeStr = `${String(nextMinDate.getHours()).padStart(2, '0')}:${String(nextMinDate.getMinutes()).padStart(2, '0')}`;
+            const currTimeStr = `${currH}:${currM}`;
+            const isSchoolDay = (nowDate.getDay() >= 1 && nowDate.getDay() <= 5);
+
+            if (vacuumPre.active && vacuumPre.remainingSec > 0 && vacuumPre.remainingSec <= 60) {
+                showAlert = true; alertClass = 'theme-vacuum'; alertLabel = 'PERINGATAN SISTEM'; alertTitle = 'ROBOT VACUUM SEGERA MULAI';
+                sisaTampil = Math.ceil(vacuumPre.remainingSec); totalDurasi = 60;
+            } else if (Date.now() < vacStartFlashUntil) {
+                showAlert = true; alertClass = 'theme-vacuum'; alertLabel = 'ROBOT VACUUM'; alertTitle = 'MULAI MEMBERSIHKAN RUMAH'; isActionNow = true;
+            } else if (isTesting && activeTestType !== 'smartinfo') {
+                let isAction = testSisaWaktu <= 0; let timeElapsed = Math.abs(testSisaWaktu); 
+                if (!isAction) { showAlert = true; sisaTampil = testSisaWaktu; totalDurasi = 10; } isActionNow = isAction;
+
+                if (activeTestType === 'school') { if (!isAction) { alertClass = "theme-school"; alertLabel = "RUTINITAS PAGI"; alertTitle = "PERSIAPAN SEKOLAH"; } else { showAlert = true; alertClass = "theme-school"; alertLabel = "RUTINITAS PAGI"; alertTitle = "WAKTUNYA SEKOLAH!"; if (timeElapsed >= 10) showAlert = false; } }
+                else if (activeTestType === 'vacuum-warn') { if (!isAction) { alertClass = "theme-vacuum"; alertLabel = "PERINGATAN SISTEM"; alertTitle = "PERSIAPAN VACUUM (H-5)"; } else { showAlert = true; alertClass = "theme-vacuum"; alertLabel = "PERINGATAN SISTEM"; alertTitle = "SEGERA MULAI"; if (timeElapsed >= 15) showAlert = false; } } 
+                else if (activeTestType === 'sholat') { if (!isAction) { alertClass = "theme-sholat"; alertLabel = "WAKTU IBADAH"; alertTitle = "MENUJU WAKTU MAGRIB"; } else { showAlert = true; alertClass = "theme-sholat"; alertLabel = "WAKTU IBADAH"; alertTitle = "MASUK WAKTU MAGRIB"; if (timeElapsed >= 15) showAlert = false; } }
+                else if (activeTestType === 'dnd') { if (!isAction) { alertClass = "theme-dnd"; alertLabel = "SISTEM MALAM"; alertTitle = "MENUJU MODE ISTIRAHAT"; } else { showAlert = true; alertClass = "theme-dnd"; alertLabel = "SISTEM MALAM"; alertTitle = "MODE JANGAN GANGGU AKTIF"; if (timeElapsed >= 10) showAlert = false; } }
+            } else if (!isTesting) {
+                
+                // EVENT REAL-TIME
+                if (currS < 15) {
+                    if (jadwalSholat[currTimeStr]) { showAlert = true; alertClass = 'theme-sholat'; alertLabel = 'WAKTU IBADAH'; alertTitle = `MASUK WAKTU ${jadwalSholat[currTimeStr]}`; isActionNow = true; }
+                    else if (currTimeStr === '06:00' && isSchoolDay && currS < 10) { showAlert = true; alertClass = 'theme-school'; alertLabel = 'RUTINITAS PAGI'; alertTitle = 'WAKTUNYA SEKOLAH!'; isActionNow = true; }
+                    else if (currTimeStr === "22:00" && currS < 10) { showAlert = true; alertClass = 'theme-dnd'; alertLabel = 'SISTEM TIDUR'; alertTitle = 'MODE JANGAN GANGGU AKTIF'; isActionNow = true; }
+                }
+
+                // HITUNG MUNDUR REAL-TIME
+                if (!showAlert && currS >= 0) {
+                    if (jadwalSholat[nextTimeStr]) { showAlert = true; alertClass = 'theme-sholat'; alertLabel = 'PERSIAPAN IBADAH'; alertTitle = `MENUJU WAKTU ${jadwalSholat[nextTimeStr]}`; }
+                    else if (nextTimeStr === '06:00' && isSchoolDay) { showAlert = true; alertClass = 'theme-school'; alertLabel = 'PERSIAPAN PAGI'; alertTitle = 'MENUJU WAKTU SEKOLAH'; }
+                    else if (nextTimeStr === "22:00") { showAlert = true; alertClass = 'theme-dnd'; alertLabel = 'PERSIAPAN TIDUR'; alertTitle = 'MENUJU MODE JANGAN GANGGU'; }
+                    else if (nextMinDate.getMinutes() % 15 === 0) { showAlert = true; alertClass = 'theme-jam'; alertLabel = 'PERGANTIAN WAKTU'; alertTitle = `MENUJU PUKUL ${nextTimeStr}`; }
+                }
+                
+                sisaTampil = 60 - currS; totalDurasi = 60;
+            }
+            
+            // Pemicu Nada Melodis saat Notifikasi Muncul
+            if (showAlert && !lastAlertActiveState && !isActionNow) {
+                AudioEngine.play(3, () => alertClass === 'theme-vacuum' ? AudioEngine.playVacuumBell() : AudioEngine.playMelodicNotificationChime());
+            }
+            lastAlertActiveState = showAlert;
+
+            let progressOffset = 251.2 * (1 - (sisaTampil / totalDurasi));
+
+            if (showAlert) {
+                elOverlayContainer.className = 'active ' + alertClass; 
+                elAlertLabelText.innerText = alertLabel; 
+                elAlertTitle.innerText = alertTitle; 
+                
+                if (isActionNow) { 
+                    elAlertCountdown.classList.add("pulse-text"); 
+                    elAlertCountdown.innerText = "SEKARANG"; 
+                    document.getElementById('alert-countdown-unit').innerText = "WAKTU TIBA";
+                    elCountdownWrapper.classList.add("time-up"); 
+                    elCountdownRing.style.strokeDashoffset = 251.2; 
+                } else { 
+                    elAlertCountdown.innerText = sisaTampil; 
+                    document.getElementById('alert-countdown-unit').innerText = "DETIK LAGI";
+                    elCountdownWrapper.classList.remove("time-up"); 
+                    elCountdownRing.style.strokeDashoffset = progressOffset;
+                    if (sisaTampil <= 10) elAlertCountdown.classList.add("pulse-text"); 
+                    else elAlertCountdown.classList.remove("pulse-text"); 
+                }
+            } else { 
+                elOverlayContainer.className = ''; 
+                elAlertCountdown.classList.remove("pulse-text"); 
+            }
+
+            const isLiveTilesActive = document.getElementById('metro-fullscreen-tiles').classList.contains('show-tiles');
+            if (showAlert || isLiveTilesActive) elMainView.classList.add('dimmed'); 
+            else elMainView.classList.remove('dimmed');
+        }
+    </script>
+</body>
+</html>
+```
